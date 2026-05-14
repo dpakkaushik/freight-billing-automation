@@ -1,0 +1,46 @@
+# Pins are loose (>=) so the same file works on Python 3.10 - 3.13.
+# Pip will pick the newest version that has a prebuilt wheel for your Python.
+
+# ---- Web framework ----
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+python-multipart>=0.0.9
+jinja2>=3.1
+
+# ---- Data / DB ----
+sqlalchemy>=2.0,<3.0
+pydantic>=2.9,<3.0
+email-validator>=1.3
+pydantic-settings>=2.5,<3.0
+
+# ---- OCR ----
+# numpy: 2.1+ has Windows wheels for Python 3.13; 1.26 covers 3.10/3.11/3.12.
+# `>=1.26` lets pip pick whichever is right for your Python.
+numpy>=1.26
+pillow>=10.0
+opencv-python-headless>=4.10
+easyocr>=1.7.1
+
+# ---- Web automation ----
+playwright>=1.47
+
+# ---- Excel + PDF ----
+openpyxl>=3.1
+num2words>=0.5.13
+
+# ---- PDF digital signing (USB DSC / PKCS#11) ----
+pyhanko[pkcs11]>=0.20
+
+# ---- Utilities ----
+python-dotenv>=1.0
+loguru>=0.7
+tenacity>=9.0
+python-jose[cryptography]>=3.0
+passlib>=1.7.4
+
+# ---- Gemini vision extraction ----
+google-genai>=1.0
+
+# ---- Dev / tests ----
+pytest>=8.0
+httpx>=0.27

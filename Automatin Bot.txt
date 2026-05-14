@@ -1,0 +1,308 @@
+PROJECT NAME:
+Automation Bot for Document Data Entry
+
+PROJECT PURPOSE:
+Build an automation system that can:
+1. Read document details from an uploaded image
+2. Extract important fields using OCR + AI
+3. Show extracted details to user for confirmation
+4. After confirmation, automatically log into a web portal
+5. Fill and save records online
+6. Handle multiple documents in sequence using a queue/pipeline
+7. Run continuously on a cloud virtual machine (preferably GCP VM)
+
+==================================================
+HIGH LEVEL WORKFLOW
+==================================================
+
+STEP 1:
+User uploads or captures a document image.
+
+STEP 2:
+Bot reads text from image using OCR.
+
+STEP 3:
+Bot extracts structured fields from OCR text.
+
+STEP 4:
+Bot displays extracted fields to user.
+
+Example:
+-----------------------------------
+Name: John Doe
+Invoice Number: INV-1001
+Date: 2026-05-11
+Amount: 12,500
+-----------------------------------
+
+STEP 5:
+User can:
+- Confirm
+OR
+- Reject / Edit
+
+STEP 6:
+If user confirms:
+- Bot starts web automation
+- Logs into portal
+- Navigates required pages
+- Fills forms
+- Saves records
+
+STEP 7:
+If another document arrives while first automation is running:
+- Second request should go into queue
+- Bot should continue processing first
+- After first completes, second should automatically start
+
+==================================================
+IMPORTANT FUNCTIONAL REQUIREMENTS
+==================================================
+
+1. OCR EXTRACTION
+- Support image uploads
+- Handle mobile camera images
+- Handle slightly blurred images
+- Extract text reliably
+
+Preferred OCR:
+- Tesseract OCR
+OR
+- Google Vision API
+OR
+- EasyOCR
+
+2. FIELD EXTRACTION
+Bot should identify:
+- Names
+- Dates
+- IDs
+- Invoice numbers
+- Amounts
+- Other configurable fields
+
+Use AI/LLM-assisted extraction if needed.
+
+3. USER CONFIRMATION SCREEN
+Before submission:
+- Show extracted fields
+- Allow user to edit fields manually
+- Provide:
+  [Confirm]
+  [Reject]
+  [Edit]
+
+4. WEB AUTOMATION
+Bot should:
+- Login securely
+- Navigate portal
+- Fill forms
+- Save records
+- Detect success/failure
+
+Preferred tools:
+- Playwright (preferred)
+OR
+- Selenium
+
+5. JOB QUEUE / PIPELINE
+Very important requirement.
+
+Scenario:
+- First document is currently being submitted online
+- User uploads second document meanwhile
+
+Expected behavior:
+- Second document should NOT interrupt first
+- Second should wait in queue
+- Once first finishes, second starts automatically
+
+Queue system should support:
+- FIFO processing
+- Job status tracking
+- Retry handling
+
+Possible tools:
+- Celery + Redis
+OR
+- Python asyncio queue
+
+6. MULTI-STATE TRACKING
+Each job should have status:
+- Uploaded
+- OCR Processing
+- Awaiting Confirmation
+- Confirmed
+- In Queue
+- Processing
+- Success
+- Failed
+
+7. ERROR HANDLING
+Bot should handle:
+- OCR failure
+- Invalid image
+- Portal timeout
+- Login failure
+- Internet issue
+- Form submission failure
+
+8. LOGGING
+Maintain logs for:
+- OCR results
+- User actions
+- Portal submission
+- Errors
+- Queue activity
+
+9. SECURITY
+- Credentials must NOT be hardcoded
+- Use environment variables
+- Secure session handling
+- HTTPS communication
+
+==================================================
+TECH STACK PREFERENCE
+==================================================
+
+Backend:
+- Python FastAPI preferred
+
+Frontend:
+- Simple web UI
+OR
+- Streamlit for MVP
+
+OCR:
+- Google Vision API preferred
+- Fallback: EasyOCR
+
+Automation:
+- Playwright preferred
+
+Queue:
+- Celery + Redis preferred
+
+Database:
+- PostgreSQL
+OR
+- SQLite for MVP
+
+Deployment:
+- GCP Virtual Machine preferred
+
+Containerization:
+- Docker support preferred
+
+==================================================
+SUGGESTED SYSTEM ARCHITECTURE
+==================================================
+
+User Upload
+    ↓
+OCR Service
+    ↓
+Field Extraction
+    ↓
+Confirmation UI
+    ↓
+Queue Manager
+    ↓
+Web Automation Worker
+    ↓
+Portal Submission
+    ↓
+Status Update
+
+==================================================
+NON-FUNCTIONAL REQUIREMENTS
+==================================================
+
+- Scalable design
+- Modular architecture
+- Maintainable code
+- Async processing
+- Clear folder structure
+- Production-ready coding practices
+
+==================================================
+DELIVERABLES EXPECTED
+==================================================
+
+1. Full project architecture
+2. Folder structure
+3. Backend APIs
+4. OCR pipeline
+5. Queue implementation
+6. Web automation scripts
+7. Docker configuration
+8. Deployment steps for GCP
+9. Environment variable setup
+10. Logging and monitoring
+11. Error handling strategy
+
+==================================================
+IMPORTANT NOTES
+==================================================
+
+- Queue processing is critical.
+- User should be able to continue uploading documents while another job is processing.
+- Bot should never lose queued jobs.
+- System should be restart-safe.
+- Prefer asynchronous architecture.
+- Code should be modular and extensible.
+
+==================================================
+PYTHON-FIRST DEVELOPMENT REQUIREMENT
+==================================================
+
+The project should follow a Python-first architecture.
+
+Maximum business logic and automation logic should be implemented in Python scripts instead of heavy frontend logic.
+
+Preferred approach:
+- Backend-centric architecture
+- Python handles:
+  - OCR
+  - AI extraction
+  - Queue management
+  - Web automation
+  - Job scheduling
+  - Status tracking
+  - Validation
+  - Logging
+  - Retry mechanisms
+  - Database operations
+
+Frontend/UI should remain lightweight and minimal.
+
+Frontend responsibilities:
+- Upload image
+- Display extracted fields
+- Allow Confirm/Edit/Reject
+- Show job status
+
+Avoid:
+- Complex frontend frameworks unless absolutely necessary
+- Heavy JavaScript business logic
+- Browser-side processing for core workflows
+
+Preferred backend stack:
+- Python
+- FastAPI
+- Playwright
+- Celery
+- Redis
+- PostgreSQL
+
+The project should prioritize:
+- Python modularity
+- Reusable scripts
+- Service-oriented architecture
+- Maintainability
+- Ease of debugging
+- Headless execution on VM/server
+
+==================================================
+
+END OF REQUIREMENTS

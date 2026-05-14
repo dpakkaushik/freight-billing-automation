@@ -1,0 +1,1903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pallia Trans – Billing Automation</title>
+  <style>
+    :root {
+      --bg: #080e1a;
+      --panel: #0f172a;
+      --panel-2: #1e293b;
+      --panel-3: #263044;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --accent: #38bdf8;
+      --accent-2: #0ea5e9;
+      --accent-glow: rgba(56,189,248,0.18);
+      --ok: #22c55e;
+      --ok-bg: rgba(34,197,94,0.12);
+      --warn: #f59e0b;
+      --warn-bg: rgba(245,158,11,0.12);
+      --err: #ef4444;
+      --err-bg: rgba(239,68,68,0.12);
+      --border: #1e293b;
+      --border-2: #334155;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+      --sidebar-w: 220px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    a { color: var(--accent); text-decoration: none; }
+
+    /* ── Login page ── */
+    #loginPage {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at 60% 20%, rgba(56,189,248,0.07) 0%, transparent 60%), var(--bg);
+    }
+    .login-box {
+      background: var(--panel);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      padding: 40px 44px;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+    .login-logo {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent) 0%, #6366f1 100%);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 18px; color: #fff;
+      margin-bottom: 20px;
+    }
+    .login-box h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .login-box .login-sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+    .login-box label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
+    .login-box input { width: 100%; background: var(--panel-2); border: 1px solid var(--border-2); border-radius: var(--radius-sm); color: var(--text); padding: 10px 13px; font-size: 14px; font-family: inherit; margin-bottom: 16px; transition: border-color .15s, box-shadow .15s; }
+    .login-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .login-box input[type="password"] { letter-spacing: 0.1em; }
+    #loginError { min-height: 20px; font-size: 13px; color: var(--err); margin-bottom: 12px; }
+    .login-footer { font-size: 12px; color: var(--muted); margin-top: 20px; text-align: center; }
+
+    /* ── App shell ── */
+    #appShell { display: none; min-height: 100vh; flex-direction: row; }
+    #appShell.visible { display: flex; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: var(--sidebar-w);
+      min-height: 100vh;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      z-index: 50;
+    }
+    .sb-brand {
+      padding: 18px 16px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sb-logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent) 0%, #6366f1 100%);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 13px; color: #fff;
+      flex-shrink: 0;
+    }
+    .sb-brand-text .sb-title { font-size: 13px; font-weight: 700; }
+    .sb-brand-text .sb-sub { font-size: 10px; color: var(--muted); }
+
+    .sb-nav { flex: 1; padding: 10px 8px; overflow-y: auto; }
+    .sb-section-label {
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.8px;
+      padding: 10px 8px 4px;
+    }
+    .sb-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 13px; font-weight: 500;
+      color: var(--muted);
+      transition: background .12s, color .12s;
+      border: none; background: transparent;
+      width: 100%; text-align: left; font-family: inherit;
+      margin-bottom: 2px;
+    }
+    .sb-item:hover { background: var(--panel-2); color: var(--text); }
+    .sb-item.active { background: var(--accent-glow); color: var(--accent); font-weight: 600; }
+    .sb-item .sb-icon { font-size: 16px; flex-shrink: 0; width: 20px; text-align: center; }
+    .sb-item .sb-badge {
+      margin-left: auto;
+      font-size: 10px; background: var(--accent-glow); color: var(--accent);
+      border-radius: 10px; padding: 1px 7px; font-weight: 700;
+    }
+
+    .sb-footer {
+      border-top: 1px solid var(--border);
+      padding: 12px 14px;
+    }
+    .sb-user-row {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .user-avatar {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #6366f1 0%, var(--accent) 100%);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: #fff;
+      flex-shrink: 0; cursor: default;
+    }
+    .sb-user-info { flex: 1; min-width: 0; }
+    .sb-user-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sb-user-role { font-size: 10px; color: var(--muted); }
+    .sb-logout {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 16px; padding: 4px;
+      transition: color .12s;
+    }
+    .sb-logout:hover { color: var(--err); }
+
+    /* ── Content area ── */
+    #contentArea {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .content-header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 40;
+    }
+    .content-header h2 { font-size: 15px; font-weight: 700; }
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    .version-chip {
+      font-size: 11px; color: var(--muted);
+      background: var(--panel-2); border: 1px solid var(--border-2);
+      border-radius: 20px; padding: 3px 10px;
+    }
+
+    /* ── Tab panes ── */
+    .tab-pane { display: none; padding: 24px 28px; }
+    .tab-pane.active { display: block; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--muted); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title .step-badge {
+      width: 20px; height: 20px;
+      background: linear-gradient(135deg, var(--accent), #6366f1);
+      border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; color: #fff;
+    }
+    .card-title .step-badge.done { background: linear-gradient(135deg, var(--ok), #16a34a); }
+
+    /* ── Stat cards ── */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px 18px;
+    }
+    .stat-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+    .stat-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1.1; }
+    .stat-value.accent { color: var(--accent); }
+    .stat-value.ok { color: var(--ok); }
+    .stat-value.warn { color: var(--warn); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      color: #0c1322; border: 0; padding: 9px 18px;
+      border-radius: var(--radius-sm); font-weight: 700; font-size: 13px;
+      cursor: pointer; transition: opacity .15s, transform .1s;
+      font-family: inherit; white-space: nowrap;
+    }
+    .btn:hover { opacity: 0.88; }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+    .btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2); }
+    .btn.secondary:hover { background: var(--panel-3); }
+    .btn.danger { background: var(--err); color: #fff; }
+    .btn.ghost { background: transparent; color: var(--accent); border: 1px solid rgba(56,189,248,0.3); }
+    .btn.ghost:hover { background: var(--accent-glow); }
+
+    .btn.sm { padding: 6px 12px; font-size: 12px; }
+    .btn.xs { padding: 4px 8px; font-size: 11px; }
+
+    /* ── Inputs ── */
+    input[type="text"], input[type="date"], input[type="number"], input[type="email"], input[type="password"], textarea, select {
+      background: var(--panel-2);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-sm);
+      color: var(--text); padding: 9px 12px;
+      font-size: 13px; font-family: inherit;
+      width: 100%; transition: border-color .15s, box-shadow .15s;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    input.invalid { border-color: var(--err) !important; box-shadow: 0 0 0 3px var(--err-bg) !important; }
+    input.warn-field { border-color: var(--warn) !important; box-shadow: 0 0 0 3px var(--warn-bg) !important; }
+    label.field {
+      display: block; font-size: 11px; color: var(--muted);
+      margin-bottom: 5px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .field-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .field-hint.err { color: var(--err); }
+    .field-hint.warn { color: var(--warn); }
+
+    /* ── Grids ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+    @media (max-width: 900px) { .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 640px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+    .badge.draft, .badge.uploaded, .badge.ocr_processing { background: var(--warn-bg); color: var(--warn); }
+    .badge.awaiting_confirmation { background: var(--accent-glow); color: var(--accent); }
+    .badge.confirmed, .badge.generated, .badge.active { background: var(--ok-bg); color: var(--ok); }
+    .badge.failed, .badge.inactive { background: var(--err-bg); color: var(--err); }
+    .badge.admin { background: rgba(99,102,241,0.15); color: #818cf8; }
+    .badge.user { background: var(--panel-2); color: var(--muted); }
+    .badge.perm { background: var(--accent-glow); color: var(--accent); font-size: 10px; padding: 2px 7px; }
+
+    /* ── Tables ── */
+    table.data-table { width: 100%; border-collapse: collapse; }
+    table.data-table th {
+      padding: 10px 14px; text-align: left;
+      color: var(--muted); font-weight: 600;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
+      border-bottom: 1px solid var(--border);
+    }
+    table.data-table td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    table.data-table tr:last-child td { border-bottom: 0; }
+    table.data-table tbody tr:hover { background: rgba(56,189,248,0.04); }
+    table.inv-list tbody tr { cursor: pointer; }
+
+    /* ── Bar chart ── */
+    .bar-chart { display: flex; flex-direction: column; gap: 6px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-label { font-size: 11px; color: var(--muted); width: 78px; flex-shrink: 0; text-align: right; }
+    .bar-track { flex: 1; height: 16px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); border-radius: 4px; transition: width .4s ease; min-width: 2px; }
+    .bar-count { font-size: 11px; color: var(--text); width: 40px; }
+
+    /* ── Drop Zone ── */
+    .drop-zone {
+      border: 2px dashed var(--border-2);
+      border-radius: var(--radius);
+      padding: 36px 20px; text-align: center;
+      cursor: pointer; transition: all .2s;
+      background: rgba(56,189,248,0.02);
+    }
+    .drop-zone:hover, .drop-zone.drag { border-color: var(--accent); background: var(--accent-glow); }
+    .drop-zone .drop-icon { font-size: 32px; margin-bottom: 10px; }
+    .drop-zone p { color: var(--muted); font-size: 14px; }
+    .drop-zone small { font-size: 12px; color: var(--muted); opacity: 0.7; }
+
+    /* ── Preview ── */
+    .preview-box { border: 1px solid var(--border-2); border-radius: var(--radius); overflow: hidden; background: var(--panel-2); }
+    .preview-img-wrap {
+      position: relative; background: #000;
+      height: 460px; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      cursor: crosshair; user-select: none;
+    }
+    .preview-img-wrap img {
+      max-width: 100%; max-height: 100%; object-fit: contain; display: block;
+      transform-origin: center center; pointer-events: none;
+    }
+    .zoom-controls {
+      position: absolute; bottom: 10px; right: 10px;
+      display: flex; align-items: center; gap: 2px;
+      background: rgba(0,0,0,0.6); border-radius: 6px; padding: 4px 6px;
+      z-index: 10;
+    }
+    .zoom-controls button {
+      background: none; border: none; color: #fff;
+      font-size: 15px; cursor: pointer; padding: 2px 7px;
+      font-family: inherit; font-weight: 700; line-height: 1;
+      border-radius: 4px;
+    }
+    .zoom-controls button:hover { background: rgba(255,255,255,0.15); }
+    .zoom-level { font-size: 11px; color: rgba(255,255,255,0.85); min-width: 30px; text-align: center; }
+    .zoom-tip {
+      position: absolute; top: 8px; left: 10px;
+      background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.65);
+      font-size: 11px; padding: 3px 8px; border-radius: 4px; pointer-events: none;
+    }
+    .preview-footer { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--border-2); flex-wrap: wrap; gap: 8px; }
+    .preview-filename { font-size: 13px; font-weight: 600; }
+    .preview-size { font-size: 11px; color: var(--muted); }
+
+    /* ── LR Card ── */
+    .lr-card { border: 1px solid var(--border-2); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
+    .lr-card-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--panel-2); border-bottom: 1px solid var(--border-2); flex-wrap: wrap; gap: 8px; }
+    .lr-card-body { padding: 16px; }
+    .lr-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 12px; margin-bottom: 16px; }
+
+    /* ── DO Section ── */
+    .do-section { background: var(--panel-2); border: 1px solid var(--border-2); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 14px; }
+    .do-section-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px; }
+    .do-no-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .do-no-row input { flex: 1; }
+    .do-total-row { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+
+    /* ── Vehicle Master ── */
+    .vehicle-master-panel { background: var(--panel-2); border-radius: var(--radius-sm); border: 1px solid var(--border-2); padding: 14px 16px; margin-top: 12px; }
+    .vehicle-master-toggle { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .vehicle-master-toggle .arrow { transition: transform .2s; }
+    .vehicle-master-toggle.open .arrow { transform: rotate(180deg); }
+    .vehicle-master-body { display: none; margin-top: 12px; }
+    .vehicle-master-body.open { display: block; }
+    .vehicle-tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; min-height: 28px; }
+    .vehicle-tag { background: var(--panel-3); border: 1px solid var(--border-2); border-radius: 4px; padding: 3px 8px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+    .vehicle-tag button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0; line-height: 1; }
+    .vehicle-tag button:hover { color: var(--err); }
+    .vm-add-row { display: flex; gap: 8px; }
+    .vm-add-row input { flex: 1; }
+
+    /* ── Extraction banner ── */
+    .extraction-note { padding: 8px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .extraction-note.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid rgba(34,197,94,0.2); }
+    .extraction-note.err { background: var(--err-bg); color: var(--err); border: 1px solid rgba(239,68,68,0.2); }
+
+    /* ── Misc ── */
+    .row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+    .meta { color: var(--muted); font-size: 12px; }
+    .text-ok { color: var(--ok); font-size: 12px; font-weight: 600; }
+    .text-err { color: var(--err); font-size: 12px; }
+    .placeholder { text-align: center; color: var(--muted); padding: 48px 20px; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border-2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+    .locked { opacity: 0.45; pointer-events: none; }
+
+    /* ── Page header ── */
+    .page-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .page-hd h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+
+    /* ── OCR details ── */
+    details.ocr-details summary { cursor: pointer; font-size: 12px; color: var(--muted); font-weight: 600; padding: 4px 0; user-select: none; }
+    details.ocr-details pre { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-top: 8px; font-size: 11px; white-space: pre-wrap; max-height: 280px; overflow: auto; color: var(--muted); }
+
+    /* ── Upload locked ── */
+    .upload-locked-msg { background: var(--warn-bg); border: 1px solid rgba(245,158,11,0.25); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--warn); display: flex; align-items: center; gap: 8px; }
+
+    /* ── Modal ── */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .modal { background: var(--panel); border: 1px solid var(--border-2); border-radius: var(--radius); padding: 28px 32px; width: 100%; max-width: 440px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .modal p.modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-actions .btn { flex: 1; justify-content: center; }
+
+    /* ── Permissions checkboxes ── */
+    .perm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .perm-check { display: flex; align-items: center; gap: 8px; background: var(--panel-2); border: 1px solid var(--border-2); border-radius: var(--radius-sm); padding: 8px 12px; cursor: pointer; }
+    .perm-check input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--accent); cursor: pointer; }
+    .perm-check span { font-size: 12px; font-weight: 600; text-transform: capitalize; }
+
+    /* ── User table row actions ── */
+    .user-perms { display: flex; flex-wrap: wrap; gap: 4px; }
+
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ LOGIN PAGE ═══════════════════════════════ -->
+<div id="loginPage">
+  <!-- Normal login form -->
+  <div class="login-box" id="loginBox">
+    <div class="login-logo">PT</div>
+    <h1>Sign in</h1>
+    <p class="login-sub">Pallia Trans Billing Automation Console</p>
+    <label>Email</label>
+    <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="username" onkeydown="if(event.key==='Enter')$('#loginPassword').focus()" />
+    <label>Password</label>
+    <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" />
+    <div id="loginError"></div>
+    <button class="btn" style="width:100%;justify-content:center;" onclick="doLogin()">Sign in</button>
+  </div>
+
+  <!-- First-run setup (shown only when DB has no users) -->
+  <div class="login-box" id="setupBox" style="display:none;">
+    <div class="login-logo">PT</div>
+    <h1>First-time setup</h1>
+    <p class="login-sub">No accounts exist yet. Create the admin account to get started.</p>
+    <label>Email</label>
+    <input type="email" id="setupEmail" placeholder="admin@example.com" autocomplete="username" onkeydown="if(event.key==='Enter')$('#setupPassword').focus()" />
+    <label>Password</label>
+    <input type="password" id="setupPassword" placeholder="Choose a strong password" autocomplete="new-password" onkeydown="if(event.key==='Enter')$('#setupPassword2').focus()" />
+    <label>Confirm Password</label>
+    <input type="password" id="setupPassword2" placeholder="Repeat password" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSetup()" />
+    <div id="setupError"></div>
+    <button class="btn" style="width:100%;justify-content:center;" onclick="doSetup()">Create Admin Account</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ APP SHELL ═══════════════════════════════ -->
+<div id="appShell">
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="sb-brand">
+      <div class="sb-logo">PT</div>
+      <div class="sb-brand-text">
+        <div class="sb-title">Pallia Trans</div>
+        <div class="sb-sub">Billing Automation</div>
+      </div>
+    </div>
+
+    <nav class="sb-nav" id="sbNav">
+      <!-- Items injected by JS based on permissions -->
+    </nav>
+
+    <div class="sb-footer">
+      <div class="sb-user-row">
+        <div class="user-avatar" id="sbAvatar" title="">PT</div>
+        <div class="sb-user-info">
+          <div class="sb-user-name" id="sbUserName">–</div>
+          <div class="sb-user-role" id="sbUserRole">–</div>
+        </div>
+        <button class="sb-logout" onclick="logout()" title="Sign out">⏏</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Content area -->
+  <div id="contentArea">
+    <div class="content-header">
+      <h2 id="contentTitle">Billing</h2>
+      <div class="header-right">
+        <span class="version-chip" id="versionInfo">–</span>
+      </div>
+    </div>
+
+    <!-- ───── BILLING TAB ───── -->
+    <div class="tab-pane active" id="pane-billing">
+
+      <!-- Billing dashboard (default landing) -->
+      <div id="billingDashboardView">
+        <div class="page-hd">
+          <h1>Billing</h1>
+          <div style="display:flex;gap:8px;">
+            <button class="btn secondary" onclick="showInvoiceList()">All Invoices</button>
+            <button class="btn" onclick="startNewInvoice()">+ New Invoice</button>
+          </div>
+        </div>
+        <div class="stat-grid" id="billingSummaryGrid"></div>
+        <div class="card" style="padding:18px 20px;">
+          <div class="card-title">Recent Generated Invoices</div>
+          <table class="data-table" id="recentGeneratedTable">
+            <thead><tr><th>Invoice No.</th><th>Date</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Invoice list -->
+      <div id="invoiceListView" class="hidden">
+        <div class="page-hd">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <button class="btn secondary sm" onclick="showBillingDashboard()">← Dashboard</button>
+            <h1>Invoices</h1>
+          </div>
+          <button class="btn" onclick="startNewInvoice()">+ New Invoice</button>
+        </div>
+        <!-- Filter tabs -->
+        <div style="display:flex;gap:4px;margin-bottom:14px;">
+          <button class="btn secondary sm" id="filterAll" onclick="setInvoiceFilter('all')">All</button>
+          <button class="btn secondary sm" id="filterGenerated" onclick="setInvoiceFilter('generated')">Generated</button>
+        </div>
+        <div class="card" style="padding:0; overflow:hidden;">
+          <table class="data-table inv-list" id="invoiceTable">
+            <thead>
+              <tr>
+                <th>Invoice No.</th><th>Date</th><th>Status</th>
+                <th>LRs</th><th>Created</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div id="invoiceEmpty" class="placeholder hidden">No invoices found.</div>
+        </div>
+      </div>
+
+      <!-- Invoice detail -->
+      <div id="invoiceDetailView" class="hidden">
+        <div class="page-hd">
+          <button class="btn secondary sm" onclick="backToList()">← Back</button>
+          <span id="invHeaderBadge"></span>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="step-badge" id="step1badge">1</span> Invoice Details <span id="step1saved" class="text-ok hidden">✓ Saved</span></div>
+          <div class="grid-2">
+            <div>
+              <label class="field">Invoice Suffix (PTLM-2627SWM-…)</label>
+              <input type="text" id="invoiceSuffix" placeholder="e.g. 051" />
+            </div>
+            <div>
+              <label class="field">Invoice Date</label>
+              <input type="date" id="invoiceDate" />
+            </div>
+          </div>
+          <div class="row-actions">
+            <button class="btn" onclick="saveInvoiceMeta()">Save Details</button>
+            <span id="invoiceSaveStatus"></span>
+          </div>
+        </div>
+
+        <div class="card" id="uploadCard">
+          <div class="card-title"><span class="step-badge" id="step2badge">2</span> Upload LR Image</div>
+          <div id="uploadLockedMsg" class="upload-locked-msg hidden">⚠ Save invoice details first (Step 1) before uploading LRs.</div>
+          <div id="uploadDropArea">
+            <div class="drop-zone" id="lrDrop">
+              <div class="drop-icon">📄</div>
+              <p>Click or drag an LR image here</p>
+              <small>JPG, PNG, WEBP, BMP, TIFF — up to 15 MB</small>
+            </div>
+            <input type="file" id="lrFile" accept="image/*" style="display:none" />
+          </div>
+          <div id="uploadPreviewArea" class="hidden">
+            <div class="preview-box">
+              <div class="preview-img-wrap" id="previewImgWrap">
+                <img id="previewImg" src="" alt="LR preview" />
+                <div class="zoom-controls">
+                  <button onclick="adjustZoom(-0.3)" title="Zoom out">−</button>
+                  <span class="zoom-level" id="zoomLevel">1×</span>
+                  <button onclick="adjustZoom(0.3)" title="Zoom in">+</button>
+                  <button onclick="resetZoom()" style="font-size:10px;color:rgba(255,255,255,0.6);padding:2px 5px;">Reset</button>
+                </div>
+                <div class="zoom-tip">Scroll to zoom · Drag to pan</div>
+              </div>
+              <div class="preview-footer">
+                <div>
+                  <div class="preview-filename" id="previewFilename">–</div>
+                  <div class="preview-size meta" id="previewSize">–</div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn secondary sm" onclick="clearPreview()">Remove / Change</button>
+                  <button class="btn sm" id="btnDoUpload" onclick="doUpload()">Upload &amp; Extract</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="lrUploadStatus" class="meta" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card">
+          <div class="vehicle-master-toggle" id="vmToggle" onclick="toggleVehicleMaster()">
+            <span>🚛 Vehicle Master — Validation List</span>
+            <span class="arrow">▾</span>
+          </div>
+          <div class="vehicle-master-body" id="vmBody">
+            <p class="meta" style="margin-bottom:10px;">Add vehicle numbers here. If the list is empty, any vehicle is accepted. Once you add vehicles, LR cards will warn if vehicle not in this list.</p>
+            <div class="vehicle-tag-list" id="vmTagList"></div>
+            <div class="vm-add-row">
+              <input type="text" id="vmInput" placeholder="e.g. NL01AK0496" onkeydown="if(event.key==='Enter')addVehicleToMaster()" />
+              <button class="btn sm" onclick="addVehicleToMaster()">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="step-badge" id="step3badge">3</span> LRs in this Invoice</div>
+          <div id="lrList"><div class="placeholder">No LRs uploaded yet.</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="step-badge" id="step4badge">4</span> Generate Invoice</div>
+          <div class="row-actions">
+            <button class="btn" id="btnGenerate" onclick="generateInvoice()">⚡ Generate PDF</button>
+            <button class="btn secondary" id="btnDownloadPdf" disabled>↓ Download PDF</button>
+          </div>
+          <div class="row-actions" style="margin-top:10px;">
+            <button class="btn" id="btnSignPdf" disabled onclick="openPinModal()" title="Sign PDF with USB DSC token">🔏 Sign PDF (DSC)</button>
+            <button class="btn secondary" id="btnDownloadSignedPdf" disabled>↓ Download Signed PDF</button>
+            <button class="btn secondary" id="btnSubmitPortal" disabled title="Coming soon">Submit to TMS Portal</button>
+          </div>
+          <div id="generateStatus" class="meta" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───── DASHBOARD TAB ───── -->
+    <div class="tab-pane" id="pane-dashboard">
+      <div class="page-hd">
+        <h1>Dashboard</h1>
+        <button class="btn" onclick="refreshDashboard()">Refresh</button>
+      </div>
+      <div class="stat-grid" id="dashStatGrid"></div>
+      <div class="grid-2" style="gap:16px;">
+        <div class="card" style="padding:18px 20px;">
+          <div class="card-title">Invoice Breakdown</div>
+          <div id="dashInvoiceBreakdown"></div>
+        </div>
+        <div class="card" style="padding:18px 20px;">
+          <div class="card-title">Billing Metrics</div>
+          <div id="dashBillingMetrics"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───── TRACKING TAB ───── -->
+    <div class="tab-pane" id="pane-tracking">
+      <div class="card placeholder" style="padding:60px 20px;">
+        <div style="font-size:32px;margin-bottom:12px;">🚚</div>
+        <h2 style="color:var(--text);margin-bottom:8px;">Tracking</h2>
+        Vehicle &amp; consignment tracking. Coming soon.
+      </div>
+    </div>
+
+    <!-- ───── ACCOUNTS TAB ───── -->
+    <div class="tab-pane" id="pane-accounts">
+      <div class="card placeholder" style="padding:60px 20px;">
+        <div style="font-size:32px;margin-bottom:12px;">📊</div>
+        <h2 style="color:var(--text);margin-bottom:8px;">Accounts</h2>
+        Receivables, payables, ledger. Coming soon.
+      </div>
+    </div>
+
+    <!-- ───── OTHERS TAB ───── -->
+    <div class="tab-pane" id="pane-others">
+      <div class="card placeholder" style="padding:60px 20px;">
+        <div style="font-size:32px;margin-bottom:12px;">⚙️</div>
+        <h2 style="color:var(--text);margin-bottom:8px;">Others</h2>
+        Utilities &amp; settings. Coming soon.
+      </div>
+    </div>
+
+    <!-- ───── API DASHBOARD TAB ───── -->
+    <div class="tab-pane" id="pane-api-dashboard">
+      <div class="page-hd">
+        <h1>API Dashboard</h1>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <label class="field" style="margin:0;">From</label>
+          <input type="date" id="apiDateFrom" style="width:140px;" />
+          <label class="field" style="margin:0;">To</label>
+          <input type="date" id="apiDateTo" style="width:140px;" />
+          <button class="btn sm" onclick="refreshApiDashboard()">Apply</button>
+          <button class="btn secondary sm" onclick="setApiRange(7)">Last 7 days</button>
+          <button class="btn secondary sm" onclick="setApiRange(30)">Last 30 days</button>
+        </div>
+      </div>
+
+      <div class="stat-grid" id="apiStatGrid"></div>
+
+      <div class="grid-2" style="gap:16px;margin-bottom:16px;">
+        <div class="card" style="padding:18px 20px;">
+          <div class="card-title">Extraction Calls per Day</div>
+          <div id="apiDayChart" class="bar-chart"></div>
+        </div>
+        <div class="card" style="padding:18px 20px;">
+          <div class="card-title">By API / Model</div>
+          <table class="data-table" id="apiByApiTable">
+            <thead><tr><th>API</th><th>Model</th><th>Total</th><th>OK</th><th>Failed</th><th>Avg ms</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="padding:18px 20px;">
+        <div class="card-title">Recent Extraction Calls</div>
+        <table class="data-table" id="apiRecentTable">
+          <thead><tr><th>Time</th><th>API</th><th>Model</th><th>Result</th><th>Duration</th><th>Error</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ───── ADMIN / USERS TAB ───── -->
+    <div class="tab-pane" id="pane-admin">
+      <div class="page-hd">
+        <h1>User Management</h1>
+        <button class="btn" onclick="openCreateUserModal()">+ Add User</button>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table class="data-table" id="usersTable">
+          <thead>
+            <tr>
+              <th>User</th><th>Role</th><th>Permissions</th>
+              <th>Status</th><th>Last Login</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /contentArea -->
+</div><!-- /appShell -->
+
+<!-- PIN Modal -->
+<div id="pinModal" class="modal-backdrop hidden">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>🔏 Sign PDF with DSC Token</h3>
+    <p class="modal-sub">Enter your USB token PIN to place a digital signature on the invoice PDF. Make sure the DSC pendrive is connected.</p>
+    <label class="field">Token PIN</label>
+    <input type="password" id="pinInput" placeholder="Enter PIN" autocomplete="off" onkeydown="if(event.key==='Enter')doSignPdf()" />
+    <div id="pinStatus" class="meta" style="margin-top:8px;min-height:18px;"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closePinModal()">Cancel</button>
+      <button class="btn" id="btnPinSign" onclick="doSignPdf()">Sign</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create / Edit User Modal -->
+<div id="userModal" class="modal-backdrop hidden">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;">
+    <h3 id="userModalTitle">Add User</h3>
+    <p class="modal-sub" id="userModalSub">Create a new user account and assign module access.</p>
+    <input type="hidden" id="userModalId" value="" />
+
+    <div class="grid-2" style="gap:12px;margin-bottom:14px;">
+      <div>
+        <label class="field">Email</label>
+        <input type="email" id="umEmail" placeholder="user@example.com" />
+      </div>
+      <div>
+        <label class="field">Full Name</label>
+        <input type="text" id="umFullName" placeholder="Optional" />
+      </div>
+    </div>
+    <div class="grid-2" style="gap:12px;margin-bottom:14px;">
+      <div>
+        <label class="field">Password <span id="umPwdHint" style="font-size:10px;color:var(--muted);text-transform:none;">(leave blank to keep)</span></label>
+        <input type="password" id="umPassword" placeholder="••••••••" />
+      </div>
+      <div>
+        <label class="field">Role</label>
+        <select id="umRole">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+    </div>
+
+    <label class="field" style="margin-bottom:8px;">Module Permissions</label>
+    <div class="perm-grid" id="umPermGrid">
+      <!-- injected by JS -->
+    </div>
+
+    <div id="userModalError" style="min-height:18px;font-size:13px;color:var(--err);margin-top:12px;"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeUserModal()">Cancel</button>
+      <button class="btn" onclick="saveUserModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const today = () => new Date().toISOString().split("T")[0];
+const ALL_MODULES = ["billing", "tracking", "accounts", "others", "api_dashboard"];
+
+async function loadAuthImage(imgEl, url) {
+  try {
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${authToken}` } });
+    if (!resp.ok) return;
+    const blob = await resp.blob();
+    imgEl.src = URL.createObjectURL(blob);
+  } catch(e) { console.warn("Could not load LR image", e); }
+}
+
+// ── Inline image zoom + pan ───────────────────────────────────────────────────
+let _zoom = 1, _panX = 0, _panY = 0;
+let _dragging = false, _dragX = 0, _dragY = 0, _panX0 = 0, _panY0 = 0;
+
+function _applyZoom() {
+  const img = $("#previewImg");
+  const wrap = $("#previewImgWrap");
+  const lbl = $("#zoomLevel");
+  if (!img) return;
+  img.style.transform = `scale(${_zoom}) translate(${_panX}px, ${_panY}px)`;
+  if (lbl) lbl.textContent = _zoom.toFixed(1) + "×";
+  if (wrap) wrap.style.cursor = _zoom > 1 ? (_dragging ? "grabbing" : "grab") : "crosshair";
+}
+
+function adjustZoom(delta) {
+  _zoom = Math.max(1, Math.min(8, parseFloat((_zoom + delta).toFixed(2))));
+  if (_zoom === 1) { _panX = 0; _panY = 0; }
+  _applyZoom();
+}
+
+function resetZoom() {
+  _zoom = 1; _panX = 0; _panY = 0; _applyZoom();
+}
+
+function _setupUploadZoom() {
+  const wrap = $("#previewImgWrap");
+  if (!wrap || wrap._zoomReady) return;
+  wrap._zoomReady = true;
+
+  wrap.addEventListener("wheel", e => {
+    e.preventDefault();
+    adjustZoom(e.deltaY < 0 ? 0.25 : -0.25);
+  }, { passive: false });
+
+  wrap.addEventListener("mousedown", e => {
+    if (_zoom <= 1) return;
+    _dragging = true; _dragX = e.clientX; _dragY = e.clientY;
+    _panX0 = _panX; _panY0 = _panY;
+    wrap.style.cursor = "grabbing";
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", e => {
+    if (!_dragging) return;
+    _panX = _panX0 + (e.clientX - _dragX) / _zoom;
+    _panY = _panY0 + (e.clientY - _dragY) / _zoom;
+    _applyZoom();
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (_dragging) { _dragging = false; _applyZoom(); }
+  });
+}
+
+let authToken = localStorage.getItem("authToken") || "";
+let currentUser = null;
+
+async function api(path, opts = {}) {
+  opts.headers = opts.headers || {};
+  if (authToken && !opts.headers.Authorization) {
+    opts.headers.Authorization = `Bearer ${authToken}`;
+  }
+  const res = await fetch(path, opts);
+  if (res.status === 401) { logout(); throw new Error("Session expired. Please sign in again."); }
+  if (res.status === 204) return null;
+  const ct = res.headers.get("content-type") || "";
+  const body = ct.includes("application/json") ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((body && body.detail) || res.statusText);
+  return body;
+}
+
+function getInitials(user) {
+  if (user.full_name) {
+    const parts = user.full_name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return user.full_name.slice(0, 2).toUpperCase();
+  }
+  const name = user.email.split("@")[0];
+  const parts = name.split(/[._\-]/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+// ── LR field lock/unlock ──────────────────────────────────────────────────────
+const _editableLRs = new Set(); // tracks confirmed LRs the user has unlocked for re-edit
+
+function lockLRCard(lrId) {
+  document.querySelectorAll(`#lr-${lrId} input`).forEach(el => { el.disabled = true; });
+  const addDoBtn = $(`#do-add-${lrId}`);
+  if (addDoBtn) addDoBtn.style.display = "none";
+  document.querySelectorAll(`#do-nos-${lrId} .btn`).forEach(b => b.style.display = "none");
+  const btn = $(`#btnConfirm-${lrId}`);
+  if (btn) {
+    btn.textContent = "✏ Edit";
+    btn.className = "btn secondary sm";
+    btn.onclick = () => unlockLRCard(lrId);
+  }
+}
+
+function unlockLRCard(lrId) {
+  _editableLRs.add(lrId);
+  document.querySelectorAll(`#lr-${lrId} input`).forEach(el => { el.disabled = false; });
+  const addDoBtn = $(`#do-add-${lrId}`);
+  if (addDoBtn) addDoBtn.style.display = "";
+  document.querySelectorAll(`#do-nos-${lrId} .btn`).forEach(b => b.style.display = "");
+  const btn = $(`#btnConfirm-${lrId}`);
+  if (btn) {
+    btn.textContent = "Save & Confirm LR";
+    btn.className = "btn";
+    btn.onclick = () => confirmLR(lrId);
+  }
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+function doLogin() {
+  const email = $("#loginEmail").value.trim();
+  const password = $("#loginPassword").value;
+  if (!email || !password) { $("#loginError").textContent = "Enter email and password."; return; }
+  $("#loginError").textContent = "";
+  api("/api/auth/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({email, password}),
+  })
+  .then(result => {
+    authToken = result.access_token;
+    localStorage.setItem("authToken", authToken);
+    loadCurrentUser();
+  })
+  .catch(err => { $("#loginError").textContent = err.message; });
+}
+
+function logout() {
+  authToken = "";
+  currentUser = null;
+  localStorage.removeItem("authToken");
+  $("#appShell").classList.remove("visible");
+  $("#loginPage").style.display = "";
+  $("#loginPassword").value = "";
+  $("#loginError").textContent = "";
+}
+
+async function loadCurrentUser() {
+  if (!authToken) { showLoginPage(); return; }
+  try {
+    currentUser = await api("/api/auth/me");
+    showApp();
+  } catch {
+    authToken = "";
+    localStorage.removeItem("authToken");
+    showLoginPage();
+  }
+}
+
+function showLoginPage() {
+  $("#loginPage").style.display = "";
+  $("#appShell").classList.remove("visible");
+}
+
+function showApp() {
+  $("#loginPage").style.display = "none";
+  $("#appShell").classList.add("visible");
+  buildSidebar();
+  const firstTab = visibleTabs()[0];
+  if (firstTab) switchTab(firstTab);
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+const TAB_DEFS = [
+  { id: "billing",       label: "Billing",       icon: "🧾", module: "billing" },
+  { id: "dashboard",     label: "Dashboard",     icon: "📈", module: null },     // visible to all logged-in
+  { id: "tracking",      label: "Tracking",      icon: "🚚", module: "tracking" },
+  { id: "accounts",      label: "Accounts",      icon: "📊", module: "accounts" },
+  { id: "others",        label: "Others",        icon: "⚙️",  module: "others" },
+  { id: "api-dashboard", label: "API Dashboard", icon: "🔌", module: "__admin__" },
+  { id: "admin",         label: "Users",         icon: "👥", module: "__admin__" },
+];
+
+function isAdmin() { return currentUser && currentUser.role === "admin"; }
+
+function canAccess(tab) {
+  if (!currentUser) return false;
+  if (isAdmin()) return true;
+  if (tab.module === "__admin__") return false;
+  if (tab.module === null) return true;   // dashboard visible to all
+  return (currentUser.permissions || []).includes(tab.module);
+}
+
+function visibleTabs() {
+  return TAB_DEFS.filter(canAccess).map(t => t.id);
+}
+
+function buildSidebar() {
+  const initials = getInitials(currentUser);
+  $("#sbAvatar").textContent = initials;
+  $("#sbAvatar").title = currentUser.email;
+  $("#sbUserName").textContent = currentUser.full_name || currentUser.email.split("@")[0];
+  $("#sbUserRole").textContent = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+
+  const nav = $("#sbNav");
+  nav.innerHTML = "";
+
+  // Main section
+  const mainLabel = document.createElement("div");
+  mainLabel.className = "sb-section-label";
+  mainLabel.textContent = "Main";
+  nav.appendChild(mainLabel);
+
+  TAB_DEFS.forEach(tab => {
+    if (!canAccess(tab)) return;
+    const btn = document.createElement("button");
+    btn.className = "sb-item";
+    btn.dataset.tab = tab.id;
+    btn.innerHTML = `<span class="sb-icon">${tab.icon}</span>${tab.label}`;
+    btn.addEventListener("click", () => switchTab(tab.id));
+    nav.appendChild(btn);
+  });
+}
+
+function switchTab(tabId) {
+  $$(".sb-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tabId));
+  $$(".tab-pane").forEach(p => p.classList.remove("active"));
+  const pane = $(`#pane-${tabId}`);
+  if (pane) pane.classList.add("active");
+
+  const def = TAB_DEFS.find(t => t.id === tabId);
+  if (def) $("#contentTitle").textContent = def.label;
+
+  if (tabId === "billing") { showBillingDashboard(); }
+  if (tabId === "dashboard") refreshDashboard();
+  if (tabId === "api-dashboard") initApiDashboard();
+  if (tabId === "admin") refreshUsers();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function refreshDashboard() {
+  try {
+    const data = await api("/api/dashboard/summary");
+    const sg = $("#dashStatGrid");
+    sg.innerHTML = [
+      { label: "Total Invoices", value: data.total_invoices, cls: "accent" },
+      { label: "Generated", value: data.generated_invoices, cls: "ok" },
+      { label: "Drafts", value: data.draft_invoices, cls: "" },
+      { label: "Users", value: data.total_users, cls: "" },
+    ].map(s => `<div class="stat-card"><div class="stat-label">${s.label}</div><div class="stat-value ${s.cls}">${s.value}</div></div>`).join("");
+
+    $("#dashInvoiceBreakdown").innerHTML = `
+      <table class="data-table">
+        <tr><td>Total</td><td><strong>${data.total_invoices}</strong></td></tr>
+        <tr><td>Generated</td><td><strong style="color:var(--ok)">${data.generated_invoices}</strong></td></tr>
+        <tr><td>Draft</td><td><strong>${data.draft_invoices}</strong></td></tr>
+        <tr><td>Failed</td><td><strong style="color:var(--err)">${data.failed_invoices}</strong></td></tr>
+      </table>`;
+
+    $("#dashBillingMetrics").innerHTML = data.billing_metrics
+      .map(m => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+        <span class="meta">${m.label}</span><strong>${m.value.toLocaleString()}</strong>
+      </div>`).join("");
+  } catch(e) { console.error("dashboard", e); }
+}
+
+// ── API Dashboard ─────────────────────────────────────────────────────────────
+function setApiRange(days) {
+  const to = new Date();
+  const from = new Date(); from.setDate(to.getDate() - (days - 1));
+  $("#apiDateTo").value = to.toISOString().split("T")[0];
+  $("#apiDateFrom").value = from.toISOString().split("T")[0];
+  refreshApiDashboard();
+}
+
+function initApiDashboard() {
+  if (!$("#apiDateTo").value) setApiRange(7);
+  else refreshApiDashboard();
+}
+
+async function refreshApiDashboard() {
+  const from = $("#apiDateFrom").value;
+  const to = $("#apiDateTo").value;
+  let url = "/api/dashboard/external-apis";
+  if (from || to) url += `?date_from=${from}&date_to=${to}`;
+  try {
+    const data = await api(url);
+    const totalCalls = data.by_api.reduce((s, a) => s + a.total_calls, 0);
+    const totalOk = data.by_api.reduce((s, a) => s + a.successful, 0);
+    const totalFailed = data.by_api.reduce((s, a) => s + a.failed, 0);
+    const successRate = totalCalls > 0 ? Math.round((totalOk / totalCalls) * 100) : 100;
+
+    // Stat cards
+    $("#apiStatGrid").innerHTML = [
+      { label: "Total AI Calls", value: totalCalls, cls: "accent" },
+      { label: "Successful", value: totalOk, cls: "ok" },
+      { label: "Failed", value: totalFailed, cls: totalFailed > 0 ? "warn" : "" },
+      { label: "Success Rate", value: successRate + "%", cls: successRate >= 90 ? "ok" : "warn" },
+    ].map(s => `<div class="stat-card"><div class="stat-label">${s.label}</div><div class="stat-value ${s.cls}">${s.value}</div></div>`).join("");
+
+    // Bar chart (calls per day)
+    const maxCount = Math.max(...data.by_day.map(d => d.count), 1);
+    $("#apiDayChart").innerHTML = data.by_day.length
+      ? data.by_day.map(d => {
+          const pct = Math.max((d.count / maxCount) * 100, d.count > 0 ? 2 : 0);
+          return `<div class="bar-row">
+            <div class="bar-label">${d.date.slice(5)}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+            <div class="bar-count">${d.count}</div>
+          </div>`;
+        }).join("")
+      : `<div class="meta" style="padding:16px;">No extraction calls in this date range.</div>`;
+
+    // By API table
+    $("#apiByApiTable tbody").innerHTML = data.by_api.map(a => `<tr>
+      <td><strong>${a.api_name}</strong></td>
+      <td class="meta">${a.model || "–"}</td>
+      <td>${a.total_calls}</td>
+      <td style="color:var(--ok)">${a.successful}</td>
+      <td style="color:${a.failed > 0 ? 'var(--err)' : 'var(--muted)'}">${a.failed}</td>
+      <td class="meta">${a.avg_duration_ms != null ? a.avg_duration_ms + " ms" : "–"}</td>
+    </tr>`).join("") || `<tr><td colspan="6" class="meta" style="padding:12px;">No AI API calls recorded yet. They appear here after you upload and process an LR image.</td></tr>`;
+
+    // Recent calls
+    $("#apiRecentTable tbody").innerHTML = data.recent.map(r => `<tr>
+      <td class="meta">${r.created_at}</td>
+      <td><strong>${r.api_name}</strong></td>
+      <td class="meta">${r.model || "–"}</td>
+      <td><span class="badge ${r.success ? 'confirmed' : 'failed'}">${r.success ? "OK" : "FAIL"}</span></td>
+      <td class="meta">${r.duration_ms != null ? r.duration_ms + " ms" : "–"}</td>
+      <td class="meta" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.error_message || ''}">${r.error_message || "–"}</td>
+    </tr>`).join("") || `<tr><td colspan="6" class="placeholder">No recent calls.</td></tr>`;
+  } catch(e) { console.error("api dashboard", e); }
+}
+
+// ── User Management ──────────────────────────────────────────────────────────
+async function refreshUsers() {
+  try {
+    const users = await api("/api/auth/users");
+    const tbody = $("#usersTable tbody");
+    tbody.innerHTML = users.map(u => {
+      const perms = u.role === "admin"
+        ? `<span class="badge admin">All (Admin)</span>`
+        : (u.permissions || []).map(p => `<span class="badge perm">${p}</span>`).join(" ") || `<span class="meta">None</span>`;
+      const lastLogin = u.last_login ? new Date(u.last_login).toLocaleDateString() : "Never";
+      return `<tr>
+        <td>
+          <div style="font-weight:600;">${u.full_name || u.email.split("@")[0]}</div>
+          <div class="meta">${u.email}</div>
+        </td>
+        <td><span class="badge ${u.role}">${u.role}</span></td>
+        <td><div class="user-perms">${perms}</div></td>
+        <td><span class="badge ${u.is_active ? 'active' : 'inactive'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
+        <td class="meta">${lastLogin}</td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn secondary xs" onclick="openEditUserModal(${JSON.stringify(u).replace(/"/g,'&quot;')})">Edit</button>
+            <button class="btn ${u.is_active ? 'secondary' : 'ghost'} xs" onclick="toggleUserActive('${u.id}', ${!u.is_active})">${u.is_active ? 'Deactivate' : 'Activate'}</button>
+            ${u.id !== currentUser.id ? `<button class="btn danger xs" onclick="deleteUser('${u.id}', '${u.email}')">Delete</button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+    }).join("") || `<tr><td colspan="6" class="placeholder">No users found.</td></tr>`;
+  } catch(e) { console.error("users", e); }
+}
+
+function buildPermGrid(containerId, selected) {
+  const container = $("#" + containerId);
+  container.innerHTML = ALL_MODULES.map(m => `
+    <label class="perm-check">
+      <input type="checkbox" name="perm_${m}" value="${m}" ${selected.includes(m) ? "checked" : ""} />
+      <span>${m.replace(/_/g, " ")}</span>
+    </label>`).join("");
+}
+
+function getSelectedPerms(containerId) {
+  return [...$$(`#${containerId} input[type="checkbox"]:checked`)].map(el => el.value);
+}
+
+function openCreateUserModal() {
+  $("#userModalId").value = "";
+  $("#userModalTitle").textContent = "Add User";
+  $("#userModalSub").textContent = "Create a new user account and assign module access.";
+  $("#umEmail").value = ""; $("#umEmail").disabled = false;
+  $("#umFullName").value = "";
+  $("#umPassword").value = "";
+  $("#umPwdHint").style.display = "none";
+  $("#umRole").value = "user";
+  buildPermGrid("umPermGrid", []);
+  $("#userModalError").textContent = "";
+  $("#userModal").classList.remove("hidden");
+}
+
+function openEditUserModal(u) {
+  $("#userModalId").value = u.id;
+  $("#userModalTitle").textContent = "Edit User";
+  $("#userModalSub").textContent = "Update permissions, name, or password.";
+  $("#umEmail").value = u.email; $("#umEmail").disabled = true;
+  $("#umFullName").value = u.full_name || "";
+  $("#umPassword").value = "";
+  $("#umPwdHint").style.display = "";
+  $("#umRole").value = u.role;
+  buildPermGrid("umPermGrid", u.permissions || []);
+  $("#userModalError").textContent = "";
+  $("#userModal").classList.remove("hidden");
+}
+
+function closeUserModal() { $("#userModal").classList.add("hidden"); }
+
+async function saveUserModal() {
+  const id = $("#userModalId").value;
+  const isEdit = !!id;
+  const email = $("#umEmail").value.trim();
+  const fullName = $("#umFullName").value.trim();
+  const password = $("#umPassword").value;
+  const role = $("#umRole").value;
+  const permissions = getSelectedPerms("umPermGrid");
+  $("#userModalError").textContent = "";
+  try {
+    if (isEdit) {
+      const body = { full_name: fullName || null, permissions };
+      if (password) body.password = password;
+      await api(`/api/auth/users/${id}`, { method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    } else {
+      if (!email) { $("#userModalError").textContent = "Email is required."; return; }
+      if (!password) { $("#userModalError").textContent = "Password is required."; return; }
+      await api("/api/auth/register", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ email, full_name: fullName || null, password, role, permissions }) });
+    }
+    closeUserModal();
+    refreshUsers();
+  } catch(e) { $("#userModalError").textContent = e.message; }
+}
+
+async function toggleUserActive(id, active) {
+  try {
+    await api(`/api/auth/users/${id}`, { method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ is_active: active }) });
+    refreshUsers();
+  } catch(e) { alert(e.message); }
+}
+
+async function deleteUser(id, email) {
+  if (!confirm(`Delete user "${email}"? This cannot be undone.`)) return;
+  try { await api(`/api/auth/users/${id}`, { method: "DELETE" }); refreshUsers(); }
+  catch(e) { alert(e.message); }
+}
+
+// ── Vehicle Master (localStorage) ────────────────────────────────────────────
+const VM_KEY = "pallia_vehicle_master";
+function loadVehicleMaster() { try { return JSON.parse(localStorage.getItem(VM_KEY) || "[]"); } catch { return []; } }
+function saveVehicleMasterList(list) { localStorage.setItem(VM_KEY, JSON.stringify(list)); }
+function renderVehicleTags() {
+  const list = loadVehicleMaster();
+  const el = $("#vmTagList");
+  el.innerHTML = "";
+  if (!list.length) { el.innerHTML = `<span class="meta" style="font-size:12px;">No vehicles added — all accepted.</span>`; return; }
+  list.forEach(v => {
+    const tag = document.createElement("div");
+    tag.className = "vehicle-tag";
+    tag.innerHTML = `<span>${v}</span><button onclick="removeVehicle('${v}')" title="Remove">×</button>`;
+    el.appendChild(tag);
+  });
+}
+function addVehicleToMaster() {
+  const val = $("#vmInput").value.trim().toUpperCase();
+  if (!val) return;
+  const list = loadVehicleMaster();
+  if (!list.includes(val)) { list.push(val); saveVehicleMasterList(list); }
+  $("#vmInput").value = "";
+  renderVehicleTags();
+}
+function removeVehicle(v) { saveVehicleMasterList(loadVehicleMaster().filter(x => x !== v)); renderVehicleTags(); }
+function toggleVehicleMaster() {
+  const toggle = $("#vmToggle");
+  const body = $("#vmBody");
+  toggle.classList.toggle("open");
+  body.classList.toggle("open");
+  if (body.classList.contains("open")) renderVehicleTags();
+}
+function validateVehicleNo(vehicleNo) {
+  const master = loadVehicleMaster();
+  if (!master.length) return null;
+  return master.includes(vehicleNo.toUpperCase()) ? "ok" : "warn";
+}
+
+// ── Billing dashboard ─────────────────────────────────────────────────────────
+let allInvoices = [];
+let invoiceFilter = "generated";
+
+function showBillingDashboard() {
+  $("#billingDashboardView").classList.remove("hidden");
+  $("#invoiceListView").classList.add("hidden");
+  $("#invoiceDetailView").classList.add("hidden");
+  refreshBillingDashboard();
+}
+
+async function refreshBillingDashboard() {
+  if (!currentUser) return;
+  try {
+    const data = await api("/api/billing/invoices?limit=200");
+    allInvoices = data.items;
+
+    const generated = allInvoices.filter(i => i.status === "generated");
+    const today = new Date().toISOString().split("T")[0];
+    const todayCount = generated.filter(i => i.created_at.startsWith(today)).length;
+
+    // Stat cards (generated invoices only)
+    $("#billingSummaryGrid").innerHTML = [
+      { label: "Total Invoices", value: generated.length, cls: "accent" },
+      { label: "Generated Today", value: todayCount, cls: "ok" },
+    ].map(s => `<div class="stat-card"><div class="stat-label">${s.label}</div><div class="stat-value ${s.cls}">${s.value}</div></div>`).join("");
+
+    // Recent generated
+    const gTbody = $("#recentGeneratedTable tbody");
+    gTbody.innerHTML = generated.slice(0, 10).map(inv => `<tr>
+      <td style="font-weight:600;">${inv.invoice_no_full}</td>
+      <td>${inv.invoice_date}</td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn secondary xs" onclick="openInvoice('${inv.id}')">Open</button>
+        ${inv.pdf_path ? `<button class="btn ghost xs" onclick="previewPdf('${inv.id}')">Preview PDF</button>` : ""}
+      </td>
+    </tr>`).join("") || `<tr><td colspan="3" class="meta" style="padding:12px;">No generated invoices yet.</td></tr>`;
+  } catch(e) { console.error(e); }
+}
+
+function setInvoiceFilter(f) {
+  invoiceFilter = f;
+  ["All","Generated"].forEach(name => {
+    const btn = $(`#filter${name}`);
+    if (btn) btn.classList.toggle("active-filter", name.toLowerCase() === f || (f === "all" && name === "All"));
+  });
+  renderInvoiceTable();
+}
+
+function showInvoiceList() {
+  $("#billingDashboardView").classList.add("hidden");
+  $("#invoiceListView").classList.remove("hidden");
+  $("#invoiceDetailView").classList.add("hidden");
+  setInvoiceFilter("generated");
+  renderInvoiceTable();
+}
+
+function renderInvoiceTable() {
+  const filtered = invoiceFilter === "all" ? allInvoices : allInvoices.filter(i => i.status === invoiceFilter);
+  const tbody = $("#invoiceTable tbody");
+  tbody.innerHTML = "";
+  if (!filtered.length) {
+    $("#invoiceEmpty").classList.remove("hidden");
+    return;
+  }
+  $("#invoiceEmpty").classList.add("hidden");
+  filtered.forEach(inv => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="font-weight:600;">${inv.invoice_no_full}</td>
+      <td>${inv.invoice_date}</td>
+      <td><span class="badge ${inv.status}">${inv.status}</span></td>
+      <td>${(inv.lrs||[]).length}</td>
+      <td class="meta">${new Date(inv.created_at).toLocaleDateString()}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn secondary xs" onclick="event.stopPropagation();openInvoice('${inv.id}')">Open</button>
+          ${inv.pdf_path ? `<button class="btn ghost xs" onclick="event.stopPropagation();previewPdf('${inv.id}')">Preview</button>` : ""}
+        </div>
+      </td>`;
+    tr.onclick = () => openInvoice(inv.id);
+    tbody.appendChild(tr);
+  });
+}
+
+async function previewPdf(invoiceId) {
+  try {
+    const resp = await fetch(`/api/billing/invoices/${invoiceId}/pdf`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+    if (!resp.ok) { alert("Could not load PDF. " + resp.statusText); return; }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  } catch(e) { alert("Error loading PDF: " + e.message); }
+}
+
+// ── Invoice list refresh (called on tab switch) ────────────────────────────
+async function refreshInvoices() {
+  if (!currentUser) return;
+  try {
+    const data = await api("/api/billing/invoices?limit=200");
+    allInvoices = data.items;
+    // If we're on the dashboard view, refresh it; if on list, re-render table
+    if (!$("#billingDashboardView").classList.contains("hidden")) {
+      refreshBillingDashboard();
+    } else if (!$("#invoiceListView").classList.contains("hidden")) {
+      renderInvoiceTable();
+    }
+  } catch(e) { console.error(e); }
+}
+
+// ── Invoice detail ────────────────────────────────────────────────────────────
+let currentInvoice = null;
+let invoiceMetaSaved = false;
+let pendingFile = null;
+
+async function startNewInvoice() {
+  const sug = await api("/api/billing/next-suffix");
+  const inv = await api("/api/billing/invoices", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ suffix: sug.suggested }),
+  });
+  invoiceMetaSaved = false;
+  openInvoiceView(inv);
+}
+
+async function openInvoice(id) {
+  const inv = await api(`/api/billing/invoices/${id}`);
+  invoiceMetaSaved = true;
+  openInvoiceView(inv);
+}
+
+function openInvoiceView(inv) {
+  currentInvoice = inv;
+  _editableLRs.clear();
+  $("#billingDashboardView").classList.add("hidden");
+  $("#invoiceListView").classList.add("hidden");
+  $("#invoiceDetailView").classList.remove("hidden");
+  $("#invoiceSuffix").value = inv.suffix;
+  $("#invoiceDate").value = inv.invoice_date;
+  $("#invHeaderBadge").innerHTML = `<span class="badge ${inv.status}">${inv.status}</span>`;
+  setStep1Saved(invoiceMetaSaved);
+  clearPreview();
+  updateUploadLock();
+  renderLRs();
+  updateGenerateButtons();
+}
+
+async function backToList() {
+  if (currentInvoice && currentInvoice.status === "draft") {
+    const discard = confirm("This invoice hasn't been generated yet and will be discarded. Discard it?");
+    if (!discard) return;
+    try { await api(`/api/billing/invoices/${currentInvoice.id}`, { method: "DELETE" }); } catch(e) { /* ignore */ }
+  }
+  currentInvoice = null; pendingFile = null;
+  $("#invoiceDetailView").classList.add("hidden");
+  showBillingDashboard();
+}
+
+function setStep1Saved(saved) {
+  invoiceMetaSaved = saved;
+  const badge = $("#step1badge");
+  badge.classList.toggle("done", saved);
+  badge.textContent = saved ? "✓" : "1";
+  $("#step1saved").classList.toggle("hidden", !saved);
+  updateUploadLock();
+}
+
+function updateUploadLock() {
+  const locked = !invoiceMetaSaved;
+  $("#uploadLockedMsg").classList.toggle("hidden", !locked);
+  $("#lrDrop").style.pointerEvents = locked ? "none" : "";
+  $("#lrDrop").style.opacity = locked ? "0.4" : "";
+}
+
+async function saveInvoiceMeta() {
+  const suffix = $("#invoiceSuffix").value.trim();
+  const dt = $("#invoiceDate").value;
+  if (!suffix || !dt) {
+    $("#invoiceSaveStatus").innerHTML = `<span class="text-err">Fill both suffix and date.</span>`;
+    return;
+  }
+  try {
+    currentInvoice = await api(`/api/billing/invoices/${currentInvoice.id}`, {
+      method: "PATCH",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ suffix, invoice_date: dt }),
+    });
+    setStep1Saved(true);
+    $("#invoiceSaveStatus").innerHTML = `<span class="text-ok">✓ Saved</span>`;
+    setTimeout(() => $("#invoiceSaveStatus").textContent = "", 2000);
+  } catch(e) {
+    $("#invoiceSaveStatus").innerHTML = `<span class="text-err">${e.message}</span>`;
+  }
+}
+
+// ── File selection & preview ──────────────────────────────────────────────────
+$("#lrDrop").addEventListener("click", () => { if (invoiceMetaSaved) $("#lrFile").click(); });
+$("#lrDrop").addEventListener("dragover", e => { e.preventDefault(); $("#lrDrop").classList.add("drag"); });
+$("#lrDrop").addEventListener("dragleave", () => $("#lrDrop").classList.remove("drag"));
+$("#lrDrop").addEventListener("drop", e => {
+  e.preventDefault(); $("#lrDrop").classList.remove("drag");
+  if (!invoiceMetaSaved) return;
+  if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0]);
+});
+$("#lrFile").addEventListener("change", e => {
+  if (e.target.files.length) selectFile(e.target.files[0]);
+  e.target.value = "";
+});
+
+function selectFile(file) {
+  pendingFile = file;
+  const url = URL.createObjectURL(file);
+  $("#previewImg").src = url;
+  $("#previewFilename").textContent = file.name;
+  $("#previewSize").textContent = fmtBytes(file.size);
+  $("#uploadDropArea").classList.add("hidden");
+  $("#uploadPreviewArea").classList.remove("hidden");
+  $("#lrUploadStatus").textContent = "";
+  resetZoom();
+  _setupUploadZoom();
+}
+
+function clearPreview() {
+  pendingFile = null;
+  const img = $("#previewImg");
+  if (img && img.src) URL.revokeObjectURL(img.src);
+  if (img) img.src = "";
+  $("#uploadDropArea").classList.remove("hidden");
+  $("#uploadPreviewArea").classList.add("hidden");
+  $("#lrUploadStatus").textContent = "";
+  const btn = $("#btnDoUpload");
+  if (btn) { btn.textContent = "Upload & Extract"; btn.onclick = () => doUpload(); btn.disabled = false; }
+  resetZoom();
+}
+
+async function doUpload() {
+  if (!pendingFile || !currentInvoice) return;
+  const file = pendingFile;
+  $("#btnDoUpload").disabled = true;
+  $("#lrUploadStatus").innerHTML = `<span class="spinner"></span> Extracting fields from <b>${file.name}</b>... this may take ~20 seconds`;
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    await fetch(`/api/billing/invoices/${currentInvoice.id}/lrs`, {
+      method: "POST", body: fd,
+      headers: { Authorization: `Bearer ${authToken}` },
+    }).then(async r => {
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText); }
+    });
+    // Keep image visible for reference — user can verify extracted fields
+    $("#lrUploadStatus").innerHTML = `<span class="text-ok">✓ Extraction complete — review and confirm fields below. Image kept for reference.</span>`;
+    $("#btnDoUpload").textContent = "Upload Another LR";
+    $("#btnDoUpload").disabled = false;
+    $("#btnDoUpload").onclick = () => { clearPreview(); };
+    await refreshCurrentInvoice();
+  } catch(e) {
+    $("#lrUploadStatus").innerHTML = `<span class="text-err">Error: ${e.message}</span>`;
+    $("#btnDoUpload").disabled = false;
+  }
+}
+
+async function refreshCurrentInvoice() {
+  currentInvoice = await api(`/api/billing/invoices/${currentInvoice.id}`);
+  renderLRs();
+  updateGenerateButtons();
+}
+
+// ── LR rendering ─────────────────────────────────────────────────────────────
+function renderLRs() {
+  const c = $("#lrList");
+  c.innerHTML = "";
+  if (!currentInvoice.lrs || !currentInvoice.lrs.length) {
+    c.innerHTML = `<div class="placeholder">No LRs uploaded yet.</div>`;
+    return;
+  }
+  currentInvoice.lrs.forEach(lr => c.appendChild(renderOneLR(lr)));
+}
+
+function renderOneLR(lr) {
+  const fields = lr.confirmed_fields || lr.extracted_fields || {};
+  const doRows = fields.do_rows || [{ delivery_order_no: "", total_amount: "" }];
+  const totalAmount = doRows.find(r => r.total_amount)?.total_amount || "";
+  const extractionNote = fields._extraction_note || "";
+  const noteIsError = extractionNote.toLowerCase().includes("failed") || extractionNote.toLowerCase().includes("easyocr");
+
+  const wrap = document.createElement("div");
+  wrap.className = "lr-card";
+  wrap.id = `lr-${lr.id}`;
+
+  const rawOcr = (lr.ocr_text || "").replace(/</g, "&lt;");
+
+  wrap.innerHTML = `
+    <div class="lr-card-head">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="badge ${lr.status}">${lr.status.replace(/_/g," ")}</span>
+        <span style="font-weight:600;font-size:13px;">${lr.original_filename}</span>
+      </div>
+      <button class="btn danger sm" onclick="removeLR('${lr.id}')">Remove</button>
+    </div>
+    <div class="lr-card-body">
+        ${extractionNote ? `<div class="extraction-note ${noteIsError?"err":"ok"}">${noteIsError?"⚠":"✓"} ${extractionNote}</div>` : ""}
+      <div class="lr-fields" id="lr-fields-${lr.id}"></div>
+      <div class="do-section">
+        <div class="do-section-title">Delivery Order Numbers</div>
+        <div id="do-nos-${lr.id}"></div>
+        <button class="btn ghost sm" id="do-add-${lr.id}" style="margin-top:6px;" onclick="addDoNo('${lr.id}')">+ Add DO Number</button>
+        <div class="do-total-row">
+          <label class="field">Total Amount (₹) — for all DOs on this LR</label>
+          <input type="text" data-lr="${lr.id}" data-key="total_amount"
+            value="${totalAmount.replace(/"/g,'&quot;')}" placeholder="e.g. 25000" />
+          <div class="field-hint" id="total-hint-${lr.id}"></div>
+        </div>
+      </div>
+      <details class="ocr-details">
+        <summary>Show raw OCR / extracted JSON (debug)</summary>
+        <pre>${rawOcr || "(empty)"}</pre>
+      </details>
+      <div class="row-actions">
+        <button class="btn" id="btnConfirm-${lr.id}" onclick="confirmLR('${lr.id}')">Save &amp; Confirm LR</button>
+        <span id="lr-status-${lr.id}" class="meta"></span>
+      </div>
+      ${lr.error_message ? `<div class="text-err" style="margin-top:6px;">${lr.error_message}</div>` : ""}
+    </div>`;
+
+  setTimeout(() => {
+    renderLRFieldInputs(lr.id, fields);
+    const host = $(`#do-nos-${lr.id}`);
+    const doNos = doRows.map(r => r.delivery_order_no).filter(Boolean);
+    if (!doNos.length) doNos.push("");
+    doNos.forEach(no => host.appendChild(buildDoNoRow(lr.id, no)));
+    attachVehicleValidation(lr.id, fields.vehicle_no || "");
+    if (lr.status === "confirmed" && !_editableLRs.has(lr.id)) {
+      lockLRCard(lr.id);
+    }
+  }, 0);
+
+  return wrap;
+}
+
+function renderLRFieldInputs(lrId, fields) {
+  const host = $(`#lr-fields-${lrId}`);
+  if (!host) return;
+  const defs = [
+    ["Vehicle No.", "vehicle_no"],
+    ["LR / GCN No.", "gcn_no"],
+    ["LR Date", "gcn_date"],
+    ["From City", "from_city"],
+    ["Destination (To)", "destination"],
+    ["Delivery Date (POD)", "delivery_date"],
+    ["Qty", "qty"],
+  ];
+  defs.forEach(([label, key]) => {
+    const div = document.createElement("div");
+    div.innerHTML = `
+      <label class="field">${label}</label>
+      <input type="text" data-lr="${lrId}" data-key="${key}"
+        value="${(fields[key]||"").toString().replace(/"/g,'&quot;')}" placeholder="–" />
+      <div class="field-hint" id="hint-${lrId}-${key}"></div>`;
+    host.appendChild(div);
+  });
+}
+
+function attachVehicleValidation(lrId, initialValue) {
+  const el = document.querySelector(`input[data-lr="${lrId}"][data-key="vehicle_no"]`);
+  if (!el) return;
+  const check = (val) => {
+    const hint = $(`#hint-${lrId}-vehicle_no`);
+    const master = loadVehicleMaster();
+    if (!master.length) { el.classList.remove("warn-field"); if(hint) hint.textContent=""; return; }
+    if (!val) return;
+    const ok = master.includes(val.toUpperCase());
+    el.classList.toggle("warn-field", !ok);
+    if (hint) { hint.textContent = ok ? "" : `⚠ "${val}" is not in your vehicle master.`; hint.className = "field-hint warn"; }
+  };
+  el.addEventListener("input", () => check(el.value.trim()));
+  check(initialValue);
+}
+
+function buildDoNoRow(lrId, value) {
+  const row = document.createElement("div");
+  row.className = "do-no-row";
+  row.innerHTML = `
+    <input type="text" data-do="${lrId}" data-field="delivery_order_no"
+      value="${(value||"").replace(/"/g,'&quot;')}" placeholder="10-digit DO number" />
+    <button class="btn danger sm" onclick="this.parentElement.remove()" title="Remove">×</button>`;
+  return row;
+}
+
+function addDoNo(lrId) { $(`#do-nos-${lrId}`).appendChild(buildDoNoRow(lrId, "")); }
+
+function collectLRFields(lrId) {
+  const out = {};
+  document.querySelectorAll(`input[data-lr="${lrId}"]`).forEach(inp => { out[inp.dataset.key] = inp.value.trim(); });
+  const totalAmount = out.total_amount || "";
+  delete out.total_amount;
+  const doNos = [];
+  document.querySelectorAll(`#do-nos-${lrId} input[data-field="delivery_order_no"]`).forEach(inp => {
+    if (inp.value.trim()) doNos.push(inp.value.trim());
+  });
+  if (!doNos.length) doNos.push("");
+  out.do_rows = doNos.map((no, i) => ({ delivery_order_no: no, total_amount: i === 0 ? totalAmount : "" }));
+  return out;
+}
+
+function validateLRFields(lrId) {
+  const required = ["vehicle_no","gcn_no","gcn_date","destination","delivery_date","qty"];
+  let valid = true;
+  required.forEach(key => {
+    const inp = document.querySelector(`input[data-lr="${lrId}"][data-key="${key}"]`);
+    const hint = $(`#hint-${lrId}-${key}`);
+    if (!inp) return;
+    const empty = !inp.value.trim();
+    inp.classList.toggle("invalid", empty);
+    if (hint && key !== "vehicle_no") { hint.textContent = empty ? "This field is required." : ""; hint.className = "field-hint err"; }
+    if (empty) valid = false;
+  });
+  const dateInp = document.querySelector(`input[data-lr="${lrId}"][data-key="gcn_date"]`);
+  const dateHint = $(`#hint-${lrId}-gcn_date`);
+  if (dateInp && dateInp.value.trim()) {
+    const parsed = new Date(dateInp.value.trim());
+    if (!isNaN(parsed.getTime()) && parsed > new Date()) {
+      dateInp.classList.add("invalid");
+      if (dateHint) { dateHint.textContent = "LR date cannot be in the future."; dateHint.className = "field-hint err"; }
+      valid = false;
+    }
+  }
+  const amtInp = document.querySelector(`input[data-lr="${lrId}"][data-key="total_amount"]`);
+  const amtHint = $(`#total-hint-${lrId}`);
+  if (amtInp && !amtInp.value.trim()) {
+    amtInp.classList.add("invalid");
+    if (amtHint) { amtHint.textContent = "Total amount is required."; amtHint.className = "field-hint err"; }
+    valid = false;
+  } else if (amtInp) {
+    amtInp.classList.remove("invalid");
+    if (amtHint) amtHint.textContent = "";
+  }
+  return valid;
+}
+
+async function confirmLR(lrId) {
+  if (!validateLRFields(lrId)) {
+    $(`#lr-status-${lrId}`).innerHTML = `<span class="text-err">Fill all required fields (highlighted in red) before saving.</span>`;
+    return;
+  }
+  const fields = collectLRFields(lrId);
+  const statusEl = $(`#lr-status-${lrId}`);
+  const btnEl = $(`#btnConfirm-${lrId}`);
+  statusEl.innerHTML = `<span class="spinner"></span> Saving...`;
+  if (btnEl) { btnEl.disabled = true; }
+  try {
+    await api(`/api/billing/invoices/${currentInvoice.id}/lrs/${lrId}`, {
+      method: "PATCH",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ fields }),
+    });
+    _editableLRs.delete(lrId);
+    statusEl.innerHTML = "";
+    await refreshCurrentInvoice(); // re-renders card in locked state
+  } catch(e) {
+    statusEl.innerHTML = `<span class="text-err">${e.message}</span>`;
+    if (btnEl) { btnEl.disabled = false; }
+  }
+}
+
+async function removeLR(lrId) {
+  if (!confirm("Remove this LR from the invoice?")) return;
+  await api(`/api/billing/invoices/${currentInvoice.id}/lrs/${lrId}`, { method: "DELETE" });
+  await refreshCurrentInvoice();
+}
+
+// ── Generate ─────────────────────────────────────────────────────────────────
+function updateGenerateButtons() {
+  const hasConfirmed = (currentInvoice.lrs || []).some(l => l.status === "confirmed");
+  const generated = currentInvoice.status === "generated";
+  const hasPdf = !!currentInvoice.pdf_path;
+  const hasSigned = !!currentInvoice.signed_pdf_path;
+
+  $("#btnGenerate").disabled = !hasConfirmed || generated;
+  $("#btnGenerate").textContent = generated ? "✓ PDF Generated" : "⚡ Generate PDF";
+  $("#btnDownloadPdf").disabled = !hasPdf;
+  $("#btnDownloadPdf").onclick = () => previewPdf(currentInvoice.id);
+  $("#btnSignPdf").disabled = !hasPdf;
+  $("#btnSignPdf").textContent = hasSigned ? "🔏 Re-sign PDF (DSC)" : "🔏 Sign PDF (DSC)";
+  $("#btnDownloadSignedPdf").disabled = !hasSigned;
+  if (hasSigned) $("#btnDownloadSignedPdf").onclick = () => window.open(`/api/billing/invoices/${currentInvoice.id}/signed-pdf`);
+
+  const step3b = $("#step3badge");
+  step3b.classList.toggle("done", hasConfirmed);
+  step3b.textContent = hasConfirmed ? "✓" : "3";
+  const step4b = $("#step4badge");
+  step4b.classList.toggle("done", generated);
+  step4b.textContent = generated ? "✓" : "4";
+}
+
+async function generateInvoice() {
+  $("#generateStatus").innerHTML = `<span class="spinner"></span> Generating PDF... this may take ~10 seconds`;
+  try {
+    currentInvoice = await api(`/api/billing/invoices/${currentInvoice.id}/generate`, { method: "POST" });
+    $("#generateStatus").innerHTML = `<span class="text-ok">✓ PDF ready — click "Download PDF" to open it.</span>`;
+    updateGenerateButtons();
+  } catch(e) { $("#generateStatus").innerHTML = `<span class="text-err">Error: ${e.message}</span>`; }
+}
+
+// ── PDF Signing ───────────────────────────────────────────────────────────────
+function openPinModal() {
+  $("#pinInput").value = ""; $("#pinStatus").textContent = ""; $("#btnPinSign").disabled = false;
+  $("#pinModal").classList.remove("hidden");
+  setTimeout(() => $("#pinInput").focus(), 80);
+}
+function closePinModal() { $("#pinModal").classList.add("hidden"); }
+$("#pinModal").addEventListener("click", closePinModal);
+
+async function doSignPdf() {
+  const pin = $("#pinInput").value;
+  if (!pin) { $("#pinStatus").innerHTML = `<span class="text-err">Please enter your PIN.</span>`; return; }
+  $("#btnPinSign").disabled = true;
+  $("#pinStatus").innerHTML = `<span class="spinner"></span> Signing... keep USB token connected`;
+  try {
+    currentInvoice = await api(`/api/billing/invoices/${currentInvoice.id}/sign-pdf`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ pin }),
+    });
+    closePinModal();
+    $("#generateStatus").innerHTML = `<span class="text-ok">✓ PDF signed — <a href="/api/billing/invoices/${currentInvoice.id}/signed-pdf" target="_blank">Download Signed PDF ↗</a></span>`;
+    updateGenerateButtons();
+  } catch(e) {
+    $("#btnPinSign").disabled = false;
+    let msg = e.message;
+    if (msg.includes("token") || msg.includes("pendrive")) msg = "USB token not found. Make sure the DSC pendrive is connected.";
+    else if (msg.includes("PIN") || msg.includes("Incorrect")) msg = "Incorrect PIN. Please try again.";
+    $("#pinStatus").innerHTML = `<span class="text-err">${msg}</span>`;
+  }
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function fmtBytes(b) {
+  if (b < 1024) return b + " B";
+  if (b < 1048576) return (b/1024).toFixed(1) + " KB";
+  return (b/1048576).toFixed(1) + " MB";
+}
+
+async function doSetup() {
+  const email = $("#setupEmail").value.trim();
+  const pw = $("#setupPassword").value;
+  const pw2 = $("#setupPassword2").value;
+  $("#setupError").textContent = "";
+  if (!email) { $("#setupError").textContent = "Enter an email address."; return; }
+  if (pw.length < 6) { $("#setupError").textContent = "Password must be at least 6 characters."; return; }
+  if (pw !== pw2) { $("#setupError").textContent = "Passwords do not match."; return; }
+  try {
+    await api("/api/auth/register", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ email, password: pw, role: "admin" }),
+    });
+    // Auto-login after setup
+    $("#loginEmail").value = email;
+    $("#loginPassword").value = pw;
+    $("#setupBox").style.display = "none";
+    $("#loginBox").style.display = "";
+    doLogin();
+  } catch(e) { $("#setupError").textContent = e.message; }
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+fetch("/healthz").then(r => r.json()).then(d => { $("#versionInfo").textContent = `v${d.version}`; }).catch(() => {});
+
+// Check if first-run setup is needed before trying to load user
+fetch("/api/auth/needs-setup").then(r => r.json()).then(d => {
+  if (d.needs_setup) {
+    $("#loginBox").style.display = "none";
+    $("#setupBox").style.display = "";
+  } else {
+    loadCurrentUser();
+  }
+}).catch(() => loadCurrentUser());
+</script>
+</body>
+</html>

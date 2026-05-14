@@ -1,0 +1,32 @@
+# Secrets
+.env
+*.pem
+*.key
+
+# Claude Code session memory (not for repo)
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# App data
+data/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# Playwright
+.playwright/
+playwright-report/
+test-results/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
