@@ -27,6 +27,7 @@ playwright>=1.47
 # ---- Excel + PDF ----
 openpyxl>=3.1
 num2words>=0.5.13
+reportlab>=4.0
 
 # ---- PDF digital signing (USB DSC / PKCS#11) ----
 pyhanko[pkcs11]>=0.20
@@ -40,6 +41,10 @@ passlib>=1.7.4
 
 # ---- Gemini vision extraction ----
 google-genai>=1.0
+
+# ---- PDF processing (GCN extraction from multi-page PDFs) ----
+pymupdf>=1.23
+pypdf>=4.0
 
 # ---- Dev / tests ----
 pytest>=8.0

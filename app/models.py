@@ -201,3 +201,75 @@ class LR(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<LR {self.id} invoice={self.invoice_id} status={self.status}>"
+
+
+# ---------- EEE-Taxi Batch ----------
+
+class EeeTaxiBatchStatus(str, enum.Enum):
+    PENDING    = "pending"
+    PROCESSING = "processing"
+    COMPLETED  = "completed"
+    PARTIAL    = "partial"    # some rows failed, some succeeded
+    FAILED     = "failed"
+
+
+class EeeTaxiInvoiceStatus(str, enum.Enum):
+    PENDING    = "pending"
+    GENERATING = "generating"
+    DONE       = "done"
+    FAILED     = "failed"
+
+
+class EeeTaxiBatch(Base):
+    __tablename__ = "eee_taxi_batches"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
+    status: Mapped[EeeTaxiBatchStatus] = mapped_column(
+        Enum(EeeTaxiBatchStatus, native_enum=False, length=16),
+        default=EeeTaxiBatchStatus.PENDING,
+        index=True,
+    )
+    invoice_date: Mapped[date] = mapped_column(Date)
+    start_suffix: Mapped[int] = mapped_column(Integer)
+    total_rows: Mapped[int] = mapped_column(Integer, default=0)
+    csv_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    invoices: Mapped[list["EeeTaxiInvoice"]] = relationship(
+        back_populates="batch",
+        cascade="all, delete-orphan",
+        order_by="EeeTaxiInvoice.row_index",
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<EeeTaxiBatch {self.id} status={self.status}>"
+
+
+class EeeTaxiInvoice(Base):
+    __tablename__ = "eee_taxi_invoices"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
+    batch_id: Mapped[str] = mapped_column(
+        ForeignKey("eee_taxi_batches.id", ondelete="CASCADE"), index=True
+    )
+    row_index: Mapped[int] = mapped_column(Integer)
+    invoice_no: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    entity_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    client_gstin: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    booking_type: Mapped[str | None] = mapped_column(String(16), nullable=True)  # "p2p" | "rental"
+
+    status: Mapped[EeeTaxiInvoiceStatus] = mapped_column(
+        Enum(EeeTaxiInvoiceStatus, native_enum=False, length=16),
+        default=EeeTaxiInvoiceStatus.PENDING,
+        index=True,
+    )
+    pdf_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    signed_pdf_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    batch: Mapped[EeeTaxiBatch] = relationship(back_populates="invoices")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<EeeTaxiInvoice {self.id} no={self.invoice_no} status={self.status}>"

@@ -5,37 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Pallia Trans – Billing Automation</title>
   <style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
     :root {
-      --bg: #080e1a;
-      --panel: #0f172a;
-      --panel-2: #1e293b;
-      --panel-3: #263044;
-      --text: #e2e8f0;
-      --muted: #64748b;
-      --accent: #38bdf8;
-      --accent-2: #0ea5e9;
-      --accent-glow: rgba(56,189,248,0.18);
-      --ok: #22c55e;
-      --ok-bg: rgba(34,197,94,0.12);
-      --warn: #f59e0b;
-      --warn-bg: rgba(245,158,11,0.12);
-      --err: #ef4444;
-      --err-bg: rgba(239,68,68,0.12);
-      --border: #1e293b;
-      --border-2: #334155;
-      --radius: 12px;
-      --radius-sm: 8px;
-      --shadow: 0 4px 24px rgba(0,0,0,0.4);
-      --sidebar-w: 220px;
+      --bg: #0a0914;
+      --panel: #111020;
+      --panel-2: #181630;
+      --panel-3: #1f1d3a;
+      --text: #ddd8f8;
+      --muted: #5a5780;
+      --accent: #7c6af2;
+      --accent-2: #6656e6;
+      --accent-glow: rgba(124,106,242,0.16);
+      --ok: #34d399;
+      --ok-bg: rgba(52,211,153,0.12);
+      --warn: #fbbf24;
+      --warn-bg: rgba(251,191,36,0.12);
+      --err: #f87171;
+      --err-bg: rgba(248,113,113,0.12);
+      --border: #181630;
+      --border-2: #252340;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --shadow: 0 4px 28px rgba(0,0,0,0.65);
+      --sidebar-w: 228px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
       font-size: 14px;
-      line-height: 1.5;
+      line-height: 1.55;
+    }
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      opacity: 0.022;
+      pointer-events: none;
+      z-index: 9999;
     }
     a { color: var(--accent); text-decoration: none; }
 
@@ -45,25 +54,38 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: radial-gradient(ellipse at 60% 20%, rgba(56,189,248,0.07) 0%, transparent 60%), var(--bg);
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+    }
+    #loginPage::before {
+      content: '';
+      position: absolute;
+      top: -300px; right: -150px;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(124,106,242,0.08) 0%, transparent 60%);
+      pointer-events: none;
     }
     .login-box {
       background: var(--panel);
       border: 1px solid var(--border-2);
-      border-radius: var(--radius);
-      padding: 40px 44px;
+      border-radius: 14px;
+      padding: 44px 48px;
       width: 100%; max-width: 420px;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+      box-shadow: 0 32px 80px rgba(0,0,0,0.65), 0 0 0 1px rgba(124,106,242,0.06);
+      position: relative; z-index: 1;
     }
     .login-logo {
-      width: 44px; height: 44px;
-      background: linear-gradient(135deg, var(--accent) 0%, #6366f1 100%);
+      width: 46px; height: 46px;
+      background: var(--accent);
       border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 18px; color: #fff;
-      margin-bottom: 20px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 16px; color: #0c0c0a;
+      margin-bottom: 24px;
+      letter-spacing: -0.3px;
     }
-    .login-box h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .login-box h1 { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.4px; }
     .login-box .login-sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
     .login-box label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
     .login-box input { width: 100%; background: var(--panel-2); border: 1px solid var(--border-2); border-radius: var(--radius-sm); color: var(--text); padding: 10px 13px; font-size: 14px; font-family: inherit; margin-bottom: 16px; transition: border-color .15s, box-shadow .15s; }
@@ -94,14 +116,16 @@
       display: flex; align-items: center; gap: 10px;
     }
     .sb-logo {
-      width: 32px; height: 32px;
-      background: linear-gradient(135deg, var(--accent) 0%, #6366f1 100%);
-      border-radius: 8px;
+      width: 34px; height: 34px;
+      background: var(--accent);
+      border-radius: 7px;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 13px; color: #fff;
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 13px; color: #0c0c0a;
       flex-shrink: 0;
+      letter-spacing: -0.3px;
     }
-    .sb-brand-text .sb-title { font-size: 13px; font-weight: 700; }
+    .sb-brand-text .sb-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: -0.2px; }
     .sb-brand-text .sb-sub { font-size: 10px; color: var(--muted); }
 
     .sb-nav { flex: 1; padding: 10px 8px; overflow-y: auto; }
@@ -123,7 +147,8 @@
       margin-bottom: 2px;
     }
     .sb-item:hover { background: var(--panel-2); color: var(--text); }
-    .sb-item.active { background: var(--accent-glow); color: var(--accent); font-weight: 600; }
+    .sb-item.active { background: var(--panel-2); color: var(--text); font-weight: 600; position: relative; }
+    .sb-item.active::before { content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 3px; background: var(--accent); border-radius: 0 3px 3px 0; }
     .sb-item .sb-icon { font-size: 16px; flex-shrink: 0; width: 20px; text-align: center; }
     .sb-item .sb-badge {
       margin-left: auto;
@@ -140,10 +165,11 @@
     }
     .user-avatar {
       width: 32px; height: 32px;
-      background: linear-gradient(135deg, #6366f1 0%, var(--accent) 100%);
+      background: var(--accent);
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 800; color: #fff;
+      font-family: 'Syne', sans-serif;
+      font-size: 12px; font-weight: 800; color: #0c0c0a;
       flex-shrink: 0; cursor: default;
     }
     .sb-user-info { flex: 1; min-width: 0; }
@@ -174,7 +200,7 @@
       justify-content: space-between;
       position: sticky; top: 0; z-index: 40;
     }
-    .content-header h2 { font-size: 15px; font-weight: 700; }
+    .content-header h2 { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
     .header-right { display: flex; align-items: center; gap: 14px; }
     .version-chip {
       font-size: 11px; color: var(--muted);
@@ -186,6 +212,43 @@
     .tab-pane { display: none; padding: 24px 28px; }
     .tab-pane.active { display: block; }
 
+    /* ── EEE-Taxi collapsible group ── */
+    .sb-group-parent {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 13px; font-weight: 500;
+      color: var(--muted);
+      transition: background .12s, color .12s;
+      border: none; background: transparent;
+      width: 100%; text-align: left; font-family: inherit;
+      margin-bottom: 2px;
+      user-select: none;
+    }
+    .sb-group-parent:hover { background: var(--panel-2); color: var(--text); }
+    .sb-group-parent.open { color: var(--text); }
+    .sb-group-parent .sb-icon { font-size: 16px; flex-shrink: 0; width: 20px; text-align: center; }
+    .sb-group-arrow { margin-left: auto; font-size: 11px; transition: transform .2s; }
+    .sb-group-parent.open .sb-group-arrow { transform: rotate(90deg); }
+    .sb-sub-nav { display: none; padding-left: 12px; }
+    .sb-sub-nav.open { display: block; }
+    .sb-sub-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 12px; font-weight: 500;
+      color: var(--muted);
+      transition: background .12s, color .12s;
+      border: none; background: transparent;
+      width: 100%; text-align: left; font-family: inherit;
+      margin-bottom: 2px;
+      border-left: 2px solid var(--border-2);
+    }
+    .sb-sub-item:hover { background: var(--panel-2); color: var(--text); }
+    .sb-sub-item.active { background: var(--accent-glow); color: var(--accent); font-weight: 600; border-left-color: var(--accent); }
+
     /* ── Cards ── */
     .card {
       background: var(--panel);
@@ -196,19 +259,20 @@
       box-shadow: var(--shadow);
     }
     .card-title {
-      font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.8px;
-      color: var(--muted); margin-bottom: 16px;
-      display: flex; align-items: center; gap: 8px;
+      font-family: 'Syne', sans-serif;
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.9px;
+      color: var(--muted); margin-bottom: 18px;
+      display: flex; align-items: center; gap: 10px;
     }
     .card-title .step-badge {
-      width: 20px; height: 20px;
-      background: linear-gradient(135deg, var(--accent), #6366f1);
+      width: 22px; height: 22px;
+      background: var(--accent);
       border-radius: 50%;
       display: inline-flex; align-items: center; justify-content: center;
-      font-size: 10px; font-weight: 800; color: #fff;
+      font-size: 10px; font-weight: 800; color: #0c0c0a;
     }
-    .card-title .step-badge.done { background: linear-gradient(135deg, var(--ok), #16a34a); }
+    .card-title .step-badge.done { background: var(--ok); color: #fff; }
 
     /* ── Stat cards ── */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
@@ -219,7 +283,7 @@
       padding: 16px 18px;
     }
     .stat-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
-    .stat-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1.1; }
+    .stat-value { font-family: 'DM Mono', monospace; font-size: 26px; font-weight: 500; color: var(--text); line-height: 1.1; }
     .stat-value.accent { color: var(--accent); }
     .stat-value.ok { color: var(--ok); }
     .stat-value.warn { color: var(--warn); }
@@ -227,20 +291,20 @@
     /* ── Buttons ── */
     .btn {
       display: inline-flex; align-items: center; gap: 6px;
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-      color: #0c1322; border: 0; padding: 9px 18px;
+      background: var(--accent);
+      color: #0c0c0a; border: 0; padding: 9px 18px;
       border-radius: var(--radius-sm); font-weight: 700; font-size: 13px;
-      cursor: pointer; transition: opacity .15s, transform .1s;
+      cursor: pointer; transition: background .15s, transform .1s, box-shadow .15s;
       font-family: inherit; white-space: nowrap;
     }
-    .btn:hover { opacity: 0.88; }
+    .btn:hover { background: var(--accent-2); box-shadow: 0 4px 14px rgba(124,106,242,0.3); }
     .btn:active { transform: scale(0.97); }
-    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2); }
-    .btn.secondary:hover { background: var(--panel-3); }
+    .btn.secondary:hover { background: var(--panel-3); box-shadow: none; }
     .btn.danger { background: var(--err); color: #fff; }
-    .btn.ghost { background: transparent; color: var(--accent); border: 1px solid rgba(56,189,248,0.3); }
-    .btn.ghost:hover { background: var(--accent-glow); }
+    .btn.ghost { background: transparent; color: var(--accent); border: 1px solid rgba(124,106,242,0.3); }
+    .btn.ghost:hover { background: var(--accent-glow); box-shadow: none; }
 
     .btn.sm { padding: 6px 12px; font-size: 12px; }
     .btn.xs { padding: 4px 8px; font-size: 11px; }
@@ -279,9 +343,9 @@
     /* ── Badges ── */
     .badge {
       display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 10px; border-radius: 20px;
-      font-size: 11px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.4px;
+      padding: 3px 10px; border-radius: 4px;
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
     }
     .badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
     .badge.draft, .badge.uploaded, .badge.ocr_processing { background: var(--warn-bg); color: var(--warn); }
@@ -295,12 +359,13 @@
     /* ── Tables ── */
     table.data-table { width: 100%; border-collapse: collapse; }
     table.data-table th {
-      padding: 10px 14px; text-align: left;
-      color: var(--muted); font-weight: 600;
-      font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
-      border-bottom: 1px solid var(--border);
+      padding: 10px 16px; text-align: left;
+      color: var(--muted); font-weight: 700;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+      border-bottom: 1px solid var(--border-2);
+      background: var(--panel-2);
     }
-    table.data-table td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    table.data-table td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
     table.data-table tr:last-child td { border-bottom: 0; }
     table.data-table tbody tr:hover { background: rgba(56,189,248,0.04); }
     table.inv-list tbody tr { cursor: pointer; }
@@ -310,7 +375,7 @@
     .bar-row { display: flex; align-items: center; gap: 10px; }
     .bar-label { font-size: 11px; color: var(--muted); width: 78px; flex-shrink: 0; text-align: right; }
     .bar-track { flex: 1; height: 16px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
-    .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); border-radius: 4px; transition: width .4s ease; min-width: 2px; }
+    .bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s ease; min-width: 2px; }
     .bar-count { font-size: 11px; color: var(--text); width: 40px; }
 
     /* ── Drop Zone ── */
@@ -357,6 +422,19 @@
       background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.65);
       font-size: 11px; padding: 3px 8px; border-radius: 4px; pointer-events: none;
     }
+    .pdf-page-nav {
+      position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(0,0,0,0.6); border-radius: 20px; padding: 5px 14px;
+    }
+    .pdf-nav-btn {
+      background: none; border: none; color: #fff; font-size: 18px;
+      cursor: pointer; padding: 2px 6px; border-radius: 4px;
+      line-height: 1;
+    }
+    .pdf-nav-btn:hover { background: rgba(255,255,255,0.2); }
+    .pdf-nav-btn:disabled { opacity: 0.3; cursor: default; }
+    .pdf-page-label { color: #fff; font-size: 12px; white-space: nowrap; }
     .preview-footer { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--border-2); flex-wrap: wrap; gap: 8px; }
     .preview-filename { font-size: 13px; font-weight: 600; }
     .preview-size { font-size: 11px; color: var(--muted); }
@@ -407,7 +485,7 @@
 
     /* ── Page header ── */
     .page-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    .page-hd h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    .page-hd h1 { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
 
     /* ── OCR details ── */
     details.ocr-details summary { cursor: pointer; font-size: 12px; color: var(--muted); font-weight: 600; padding: 4px 0; user-select: none; }
@@ -419,7 +497,7 @@
     /* ── Modal ── */
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 200; }
     .modal { background: var(--panel); border: 1px solid var(--border-2); border-radius: var(--radius); padding: 28px 32px; width: 100%; max-width: 440px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
-    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .modal h3 { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.3px; }
     .modal p.modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
     .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
     .modal-actions .btn { flex: 1; justify-content: center; }
@@ -433,6 +511,150 @@
     /* ── User table row actions ── */
     .user-perms { display: flex; flex-wrap: wrap; gap: 4px; }
 
+    /* ── Animations ── */
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes statPop {
+      from { opacity: 0; transform: translateY(12px) scale(0.95); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes loginDrop {
+      from { opacity: 0; transform: translateY(-28px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes dropPulse {
+      0%, 100% { border-color: var(--border-2); box-shadow: none; }
+      50%       { border-color: var(--accent); box-shadow: 0 0 0 5px var(--accent-glow); }
+    }
+    @keyframes indicatorSlide {
+      from { transform: scaleY(0); opacity: 0; }
+      to   { transform: scaleY(1); opacity: 1; }
+    }
+    @keyframes logoSpin {
+      from { transform: rotateY(0deg); }
+      to   { transform: rotateY(360deg); }
+    }
+
+    /* Login box drops in from above */
+    .login-box { animation: loginDrop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+    /* Cards cascade in when a tab activates */
+    .tab-pane.active .card {
+      animation: fadeSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .tab-pane.active .card:nth-child(1) { animation-delay: 0ms; }
+    .tab-pane.active .card:nth-child(2) { animation-delay: 75ms; }
+    .tab-pane.active .card:nth-child(3) { animation-delay: 150ms; }
+    .tab-pane.active .card:nth-child(4) { animation-delay: 225ms; }
+    .tab-pane.active .card:nth-child(5) { animation-delay: 300ms; }
+
+    /* Stat cards pop in with stagger */
+    .tab-pane.active .stat-card {
+      animation: statPop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .tab-pane.active .stat-card:nth-child(1) { animation-delay: 0ms; }
+    .tab-pane.active .stat-card:nth-child(2) { animation-delay: 55ms; }
+    .tab-pane.active .stat-card:nth-child(3) { animation-delay: 110ms; }
+    .tab-pane.active .stat-card:nth-child(4) { animation-delay: 165ms; }
+
+    /* Stat card hover lift */
+    .stat-card { transition: transform .22s cubic-bezier(0.16,1,0.3,1), box-shadow .22s; }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 32px rgba(0,0,0,0.5); }
+
+    /* LR cards slide in as they're added */
+    .lr-card { animation: fadeSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+    .lr-card { transition: border-color .18s, box-shadow .18s; }
+    .lr-card:hover { border-color: rgba(124,106,242,0.3); box-shadow: 0 4px 20px rgba(0,0,0,0.35); }
+
+    /* Sidebar item hover micro-slide */
+    .sb-item { transition: background .12s, color .12s, transform .15s cubic-bezier(0.16,1,0.3,1); }
+    .sb-item:hover:not(.active) { transform: translateX(3px); }
+
+    /* Active left-border slide in */
+    .sb-item.active::before {
+      transform-origin: top;
+      animation: indicatorSlide 0.22s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    /* Drop zone pulsing dashed ring when hovered/dragged */
+    .drop-zone:hover, .drop-zone.drag {
+      animation: dropPulse 1.8s ease infinite !important;
+    }
+
+    /* Card hover subtle depth */
+    .card { transition: box-shadow .2s; }
+
+    /* Button: contains glow ripple on click */
+    .btn { position: relative; overflow: hidden; }
+    .btn::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at center, rgba(255,255,255,0.22) 0%, transparent 65%);
+      opacity: 0;
+      transition: opacity .3s;
+      pointer-events: none;
+    }
+    .btn:active::after { opacity: 1; }
+
+    /* Logo 3-D flip on hover */
+    .sb-logo, .login-logo { perspective: 200px; }
+    .sb-logo:hover, .login-logo:hover { animation: logoSpin 0.6s ease; }
+
+    /* ── Typography overrides ── */
+    .zoom-level, .bar-count, .preview-filename, .preview-size,
+    .vehicle-tag, details.ocr-details pre { font-family: 'DM Mono', monospace; }
+    .zoom-level { font-size: 11px; }
+    .bar-count { font-size: 11px; }
+    .preview-filename { font-size: 12px; font-weight: 500; }
+    .vehicle-tag { font-size: 11px; }
+    .version-chip { font-family: 'DM Mono', monospace; font-size: 10px; }
+    .do-section-title { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; }
+    .vehicle-master-toggle { font-family: 'Syne', sans-serif; font-size: 11px; }
+    .sb-section-label { font-size: 9px; letter-spacing: 1.2px; }
+    label.field { font-size: 10px; letter-spacing: 0.7px; font-weight: 700; }
+    .table.data-table tbody tr:hover { background: rgba(124,106,242,0.04); }
+    .perm-check { transition: border-color .15s; }
+    .perm-check:hover { border-color: var(--accent); }
+    .perm-check input[type="checkbox"] { accent-color: var(--accent); }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+    /* ── Gradient mesh background ── */
+    body {
+      background:
+        radial-gradient(ellipse 70% 55% at 78% 8%,  rgba(124,106,242,0.14) 0%, transparent 55%),
+        radial-gradient(ellipse 55% 45% at 12% 88%, rgba(124,106,242,0.09) 0%, transparent 55%),
+        radial-gradient(ellipse 40% 35% at 50% 50%, rgba(100,86,230,0.05) 0%, transparent 60%),
+        var(--bg);
+    }
+    #sidebar {
+      background: linear-gradient(180deg, rgba(124,106,242,0.08) 0%, transparent 40%), var(--panel);
+    }
+
+    /* ── Refined sidebar tab appearance ── */
+    .sb-item { padding: 10px 14px; border-radius: 8px; gap: 11px; }
+    .sb-item.active { background: rgba(124,106,242,0.13) !important; color: var(--accent) !important; }
+    .sb-item.active::before { background: var(--accent); }
+    .sb-section-label { padding: 16px 14px 5px; border-top: 1px solid var(--border); margin-top: 2px; font-size: 9px; letter-spacing: 1.3px; }
+
+    /* ── SVG icon support in sidebar ── */
+    .sb-item .sb-icon,
+    .sb-group-parent .sb-icon,
+    .sb-sub-item .sb-icon { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; }
+    .sb-item .sb-icon svg,
+    .sb-group-parent .sb-icon svg,
+    .sb-sub-item .sb-icon svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+    /* ── Button text + glow for blue scheme ── */
+    .btn { color: #e8f0ff; }
+    .btn:hover { box-shadow: 0 4px 16px rgba(124,106,242,0.4); }
+    .btn.ghost { border-color: rgba(124,106,242,0.35); }
+    .login-logo { color: #e8f0ff; }
+    .sb-logo { color: #dbeafe; }
+    .user-avatar { color: #e8f0ff; }
+    .card-title .step-badge { color: #e8f0ff; }
+
   </style>
 </head>
 <body>
@@ -441,7 +663,17 @@
 <div id="loginPage">
   <!-- Normal login form -->
   <div class="login-box" id="loginBox">
-    <div class="login-logo">PT</div>
+    <div class="login-logo">
+      <svg viewBox="0 0 22 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:22px;height:auto;display:block;">
+        <rect x="0" y="0.5" width="12" height="8.5" rx="1.4"/>
+        <path d="M12 3.5h5.5l3 4.5v3H12V3.5z"/>
+        <rect x="13" y="4.5" width="4" height="3" rx="0.6" fill="#2563eb" fill-opacity="0.4"/>
+        <circle cx="4" cy="13" r="2"/>
+        <circle cx="4" cy="13" r="0.9" fill="#2563eb"/>
+        <circle cx="16.5" cy="13" r="2"/>
+        <circle cx="16.5" cy="13" r="0.9" fill="#2563eb"/>
+      </svg>
+    </div>
     <h1>Sign in</h1>
     <p class="login-sub">Pallia Trans Billing Automation Console</p>
     <label>Email</label>
@@ -454,7 +686,17 @@
 
   <!-- First-run setup (shown only when DB has no users) -->
   <div class="login-box" id="setupBox" style="display:none;">
-    <div class="login-logo">PT</div>
+    <div class="login-logo">
+      <svg viewBox="0 0 22 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:22px;height:auto;display:block;">
+        <rect x="0" y="0.5" width="12" height="8.5" rx="1.4"/>
+        <path d="M12 3.5h5.5l3 4.5v3H12V3.5z"/>
+        <rect x="13" y="4.5" width="4" height="3" rx="0.6" fill="#2563eb" fill-opacity="0.4"/>
+        <circle cx="4" cy="13" r="2"/>
+        <circle cx="4" cy="13" r="0.9" fill="#2563eb"/>
+        <circle cx="16.5" cy="13" r="2"/>
+        <circle cx="16.5" cy="13" r="0.9" fill="#2563eb"/>
+      </svg>
+    </div>
     <h1>First-time setup</h1>
     <p class="login-sub">No accounts exist yet. Create the admin account to get started.</p>
     <label>Email</label>
@@ -474,7 +716,17 @@
   <!-- Sidebar -->
   <aside id="sidebar">
     <div class="sb-brand">
-      <div class="sb-logo">PT</div>
+      <div class="sb-logo">
+        <svg viewBox="0 0 22 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:17px;height:auto;display:block;">
+          <rect x="0" y="0.5" width="12" height="8.5" rx="1.4"/>
+          <path d="M12 3.5h5.5l3 4.5v3H12V3.5z"/>
+          <rect x="13" y="4.5" width="4" height="3" rx="0.6" fill="#2563eb" fill-opacity="0.4"/>
+          <circle cx="4" cy="13" r="2"/>
+          <circle cx="4" cy="13" r="0.9" fill="#2563eb"/>
+          <circle cx="16.5" cy="13" r="2"/>
+          <circle cx="16.5" cy="13" r="0.9" fill="#2563eb"/>
+        </svg>
+      </div>
       <div class="sb-brand-text">
         <div class="sb-title">Pallia Trans</div>
         <div class="sb-sub">Billing Automation</div>
@@ -511,11 +763,15 @@
 
       <!-- Billing dashboard (default landing) -->
       <div id="billingDashboardView">
-        <div class="page-hd">
-          <h1>Billing</h1>
-          <div style="display:flex;gap:8px;">
-            <button class="btn secondary" onclick="showInvoiceList()">All Invoices</button>
-            <button class="btn" onclick="startNewInvoice()">+ New Invoice</button>
+        <div id="welcomeBanner" style="background:linear-gradient(135deg,rgba(124,106,242,0.1),rgba(102,86,230,0.05));border:1px solid rgba(124,106,242,0.14);border-radius:10px;padding:18px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(124,106,242,0.4),transparent);"></div>
+          <div>
+            <div id="welcomeGreeting" style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--text);letter-spacing:-0.01em;">Good morning 👋</div>
+            <div id="welcomeSub" style="font-size:13px;color:var(--muted);margin-top:4px;"></div>
+          </div>
+          <div style="display:flex;gap:12px;">
+            <button class="btn secondary sm" onclick="showInvoiceList()">All Invoices</button>
+            <button class="btn sm" onclick="startNewInvoice()">+ New Invoice</button>
           </div>
         </div>
         <div class="stat-grid" id="billingSummaryGrid"></div>
@@ -576,26 +832,35 @@
             </div>
           </div>
           <div class="row-actions">
-            <button class="btn" onclick="saveInvoiceMeta()">Save Details</button>
+            <button class="btn" id="btnSaveMeta" onclick="saveInvoiceMeta()">Save Details</button>
             <span id="invoiceSaveStatus"></span>
           </div>
         </div>
 
         <div class="card" id="uploadCard">
-          <div class="card-title"><span class="step-badge" id="step2badge">2</span> Upload LR Image</div>
+          <div class="card-title"><span class="step-badge" id="step2badge">2</span> Upload LR Image or PDF</div>
           <div id="uploadLockedMsg" class="upload-locked-msg hidden">⚠ Save invoice details first (Step 1) before uploading LRs.</div>
           <div id="uploadDropArea">
             <div class="drop-zone" id="lrDrop">
               <div class="drop-icon">📄</div>
-              <p>Click or drag an LR image here</p>
-              <small>JPG, PNG, WEBP, BMP, TIFF — up to 15 MB</small>
+              <p>Click or drag an LR image or PDF here</p>
+              <small>JPG, PNG, WEBP, BMP, TIFF, PDF — up to 15 MB</small>
             </div>
-            <input type="file" id="lrFile" accept="image/*" style="display:none" />
+            <input type="file" id="lrFile" accept="image/*,.pdf" style="display:none" />
           </div>
           <div id="uploadPreviewArea" class="hidden">
             <div class="preview-box">
               <div class="preview-img-wrap" id="previewImgWrap">
                 <img id="previewImg" src="" alt="LR preview" />
+                <!-- PDF preview via iframe (shown for PDFs, hidden for images) -->
+                <iframe id="pdfIframe" class="hidden" src="about:blank"
+                  style="position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;"></iframe>
+                <!-- PDF page navigation (hidden for images) -->
+                <div id="pdfPageNav" class="pdf-page-nav hidden">
+                  <button class="pdf-nav-btn" id="btnPdfPrev" onclick="pdfNavPage(-1)" title="Previous page">&#8592;</button>
+                  <span id="pdfPageLabel" class="pdf-page-label">Page 1 / 1</span>
+                  <button class="pdf-nav-btn" id="btnPdfNext" onclick="pdfNavPage(1)" title="Next page">&#8594;</button>
+                </div>
                 <div class="zoom-controls">
                   <button onclick="adjustZoom(-0.3)" title="Zoom out">−</button>
                   <span class="zoom-level" id="zoomLevel">1×</span>
@@ -615,6 +880,11 @@
                 </div>
               </div>
             </div>
+          </div>
+          <!-- shown after PDF is uploaded; user picks which pages to extract -->
+          <div id="pdfPageSelector" class="hidden" style="margin-top:10px;padding:12px 16px;background:var(--panel-3);border-radius:var(--radius-sm);border:1px solid var(--border-2);">
+            <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Click a page to extract its GCN — skip Tax Invoice pages</div>
+            <div id="pdfPageBtns" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
           </div>
           <div id="lrUploadStatus" class="meta" style="margin-top:10px;"></div>
         </div>
@@ -637,6 +907,13 @@
         <div class="card">
           <div class="card-title"><span class="step-badge" id="step3badge">3</span> LRs in this Invoice</div>
           <div id="lrList"><div class="placeholder">No LRs uploaded yet.</div></div>
+          <div id="invoiceAmtSection" class="hidden" style="margin:14px 0 0;padding:12px 16px;background:var(--panel-3);border-radius:var(--radius-sm);border:1px solid var(--border-2);display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;">Invoice Freight Amount (₹)</label>
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:160px;">
+              <input type="text" id="invoiceFreightAmtInput" placeholder="e.g. 25000" style="max-width:220px;" />
+              <span class="field-hint" id="invoiceAmtHint"></span>
+            </div>
+          </div>
         </div>
 
         <div class="card">
@@ -698,6 +975,136 @@
         <div style="font-size:32px;margin-bottom:12px;">⚙️</div>
         <h2 style="color:var(--text);margin-bottom:8px;">Others</h2>
         Utilities &amp; settings. Coming soon.
+      </div>
+    </div>
+
+    <!-- ───── EEE-TAXI: BILLING TAB ───── -->
+    <div class="tab-pane" id="pane-eee-billing">
+      <div class="page-hd">
+        <h1>EEE-Taxi — Invoice Generation</h1>
+      </div>
+
+      <!-- Phase 1: Upload CSV -->
+      <div id="eetPhase1" class="card" style="padding:20px 22px;margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:14px;">Step 1 — Upload Trip CSV</div>
+        <div class="field-group">
+          <label class="field">Trip CSV</label>
+          <input type="file" id="eetCsvFile" accept=".csv" style="width:100%;" />
+        </div>
+        <button class="btn" style="width:100%;margin-top:16px;" onclick="eetUploadAndCalculate()">
+          Upload &amp; Calculate
+        </button>
+        <div id="eetPhase1Error" style="margin-top:10px;font-size:12px;color:#ef4444;"></div>
+      </div>
+
+      <!-- Phase 2: Review + Settings (hidden until CSV uploaded) -->
+      <div id="eetPhase2" style="display:none;">
+        <div style="display:flex;gap:16px;align-items:flex-start;">
+
+          <!-- Left: settings -->
+          <div class="card" style="flex:0 0 340px;padding:20px 22px;">
+            <div class="card-title" style="margin-bottom:12px;">Step 2 — Verify &amp; Generate</div>
+
+            <div id="eetCalcSummary" style="padding:10px 12px;background:var(--surface2);
+                 border-radius:8px;font-size:12px;line-height:1.7;margin-bottom:10px;"></div>
+
+            <button class="btn secondary" id="eetDownloadCalcBtn"
+                    style="width:100%;margin-bottom:14px;font-size:12px;"
+                    onclick="eetDownloadCalcCsv()">
+              Download Calculated CSV
+            </button>
+
+            <div class="field-group" style="margin-bottom:14px;">
+              <label class="field" style="display:flex;align-items:center;gap:6px;">
+                Upload Modified Calculated CSV
+                <span style="font-size:10px;font-weight:400;color:var(--text-dim);">(optional)</span>
+              </label>
+              <input type="file" id="eetModifiedCsvFile" accept=".csv"
+                     style="width:100%;margin-top:4px;" />
+              <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">
+                Edit Calc_Trip_Fare in downloaded file, re-upload here to override
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label class="field">Invoice Date</label>
+              <input type="date" id="eetInvDate" style="width:100%;" />
+            </div>
+
+            <div class="field-group" style="margin-top:12px;">
+              <label class="field">Starting Invoice Suffix</label>
+              <input type="number" id="eetStartSuffix" min="1" max="9999" value="1"
+                     style="width:100%;" placeholder="e.g. 317" />
+              <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">
+                First invoice will be DL/HO/YY-YY/XXXX
+              </div>
+            </div>
+
+            <div class="field-group" style="margin-top:12px;">
+              <label class="field">Signing Mode</label>
+              <div style="display:flex;gap:18px;margin-top:4px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+                  <input type="radio" name="eetSignMode" value="usb" id="eetSignModeUsb"
+                         checked onchange="eetTogglePinField()" />
+                  USB DSC
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+                  <input type="radio" name="eetSignMode" value="dummy" id="eetSignModeDummy"
+                         onchange="eetTogglePinField()" />
+                  Dummy (Test)
+                </label>
+              </div>
+            </div>
+
+            <div id="eetPinGroup" class="field-group" style="margin-top:12px;">
+              <label class="field">DSC PIN (mToken)</label>
+              <input type="password" id="eetPin" autocomplete="off" style="width:100%;"
+                     placeholder="Entered once for all invoices" />
+            </div>
+
+            <button class="btn" style="width:100%;margin-top:18px;" onclick="eetProceed()">
+              Proceed — Generate &amp; Sign All Invoices
+            </button>
+            <button class="btn secondary" style="width:100%;margin-top:8px;font-size:12px;"
+                    onclick="eetReset()">
+              &larr; Upload a Different CSV
+            </button>
+
+            <div id="eetBatchMeta" style="display:none;margin-top:14px;font-size:12px;
+                 color:var(--text-dim);line-height:1.6;"></div>
+          </div>
+
+          <!-- Right: live status panel -->
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;
+                        margin-bottom:10px;">
+              <div id="eetBatchSummary" style="font-size:13px;color:var(--text-dim);">
+                Fill in the settings and click Proceed to generate invoices.
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button id="eetDownloadP2pBtn" class="btn secondary sm"
+                        style="display:none;" onclick="eetDownloadP2p()">P2P ZIP</button>
+                <button id="eetDownloadRentalBtn" class="btn secondary sm"
+                        style="display:none;" onclick="eetDownloadRental()">Rental ZIP</button>
+                <button id="eetDownloadAllBtn" class="btn secondary sm"
+                        style="display:none;" onclick="eetDownloadAll()">All ZIP</button>
+              </div>
+            </div>
+            <div id="eetInvoiceList" style="display:flex;flex-direction:column;gap:8px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───── EEE-TAXI: OPERATIONS TAB ───── -->
+    <div class="tab-pane" id="pane-eee-operations">
+      <div class="page-hd">
+        <h1>EEE-Taxi — Operations</h1>
+      </div>
+      <div class="card placeholder" style="padding:60px 20px;">
+        <div style="font-size:32px;margin-bottom:12px;">🚖</div>
+        <h2 style="color:var(--text);margin-bottom:8px;">EEE-Taxi Operations</h2>
+        Operations module for EEE-Taxi. Coming soon.
       </div>
     </div>
 
@@ -930,6 +1337,8 @@ function lockLRCard(lrId) {
   const addDoBtn = $(`#do-add-${lrId}`);
   if (addDoBtn) addDoBtn.style.display = "none";
   document.querySelectorAll(`#do-nos-${lrId} .btn`).forEach(b => b.style.display = "none");
+  const statusEl = $(`#lr-status-${lrId}`);
+  if (statusEl) statusEl.innerHTML = `<span class="text-ok">✓ Saved</span>`;
   const btn = $(`#btnConfirm-${lrId}`);
   if (btn) {
     btn.textContent = "✏ Edit";
@@ -944,6 +1353,8 @@ function unlockLRCard(lrId) {
   const addDoBtn = $(`#do-add-${lrId}`);
   if (addDoBtn) addDoBtn.style.display = "";
   document.querySelectorAll(`#do-nos-${lrId} .btn`).forEach(b => b.style.display = "");
+  const statusEl = $(`#lr-status-${lrId}`);
+  if (statusEl) statusEl.innerHTML = "";
   const btn = $(`#btnConfirm-${lrId}`);
   if (btn) {
     btn.textContent = "Save & Confirm LR";
@@ -1007,14 +1418,14 @@ function showApp() {
 }
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
+const _ico = (d) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const TAB_DEFS = [
-  { id: "billing",       label: "Billing",       icon: "🧾", module: "billing" },
-  { id: "dashboard",     label: "Dashboard",     icon: "📈", module: null },     // visible to all logged-in
-  { id: "tracking",      label: "Tracking",      icon: "🚚", module: "tracking" },
-  { id: "accounts",      label: "Accounts",      icon: "📊", module: "accounts" },
-  { id: "others",        label: "Others",        icon: "⚙️",  module: "others" },
-  { id: "api-dashboard", label: "API Dashboard", icon: "🔌", module: "__admin__" },
-  { id: "admin",         label: "Users",         icon: "👥", module: "__admin__" },
+  { id: "billing",       label: "Billing",       module: "billing",    icon: _ico('<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>') },
+  { id: "tracking",      label: "Tracking",      module: "tracking",   icon: _ico('<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>') },
+  { id: "accounts",      label: "Accounts",      module: "accounts",   icon: _ico('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>') },
+  { id: "others",        label: "Others",        module: "others",     icon: _ico('<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>') },
+  { id: "api-dashboard", label: "API Dashboard", module: "__admin__",  icon: _ico('<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>') },
+  { id: "admin",         label: "Users",         module: "__admin__",  icon: _ico('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>') },
 ];
 
 function isAdmin() { return currentUser && currentUser.role === "admin"; }
@@ -1056,16 +1467,69 @@ function buildSidebar() {
     btn.addEventListener("click", () => switchTab(tab.id));
     nav.appendChild(btn);
   });
+
+  // EEE-Taxi collapsible group
+  const eeeLabel = document.createElement("div");
+  eeeLabel.className = "sb-section-label";
+  eeeLabel.textContent = "EEE-Taxi";
+  nav.appendChild(eeeLabel);
+
+  const eeeParent = document.createElement("button");
+  eeeParent.className = "sb-group-parent";
+  eeeParent.id = "eeeGroupParent";
+  eeeParent.innerHTML = `<span class="sb-icon">${_ico('<path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v9a2 2 0 01-2 2h-2"/><circle cx="8.5" cy="17" r="2.5"/><circle cx="17.5" cy="17" r="2.5"/><polyline points="15 3 15 8 20 8"/>')}</span>EEE-Taxi<span class="sb-group-arrow">▶</span>`;
+  nav.appendChild(eeeParent);
+
+  const eeeSubNav = document.createElement("div");
+  eeeSubNav.className = "sb-sub-nav";
+  eeeSubNav.id = "eeeSubNav";
+
+  const eeeSubs = [
+    { id: "eee-billing",    label: "Billing",    icon: _ico('<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>') },
+    { id: "eee-operations", label: "Operations", icon: _ico('<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>') },
+  ];
+  eeeSubs.forEach(sub => {
+    const subBtn = document.createElement("button");
+    subBtn.className = "sb-sub-item";
+    subBtn.dataset.tab = sub.id;
+    subBtn.innerHTML = `<span class="sb-icon">${sub.icon}</span>${sub.label}`;
+    subBtn.addEventListener("click", () => switchTab(sub.id));
+    eeeSubNav.appendChild(subBtn);
+  });
+  nav.appendChild(eeeSubNav);
+
+  eeeParent.addEventListener("click", () => {
+    const open = eeeParent.classList.toggle("open");
+    eeeSubNav.classList.toggle("open", open);
+  });
 }
+
+const EEE_SUB_DEFS = [
+  { id: "eee-billing",    label: "EEE-Taxi — Billing" },
+  { id: "eee-operations", label: "EEE-Taxi — Operations" },
+];
 
 function switchTab(tabId) {
   $$(".sb-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tabId));
+  $$(".sb-sub-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tabId));
   $$(".tab-pane").forEach(p => p.classList.remove("active"));
   const pane = $(`#pane-${tabId}`);
   if (pane) pane.classList.add("active");
 
   const def = TAB_DEFS.find(t => t.id === tabId);
+  const eeeDef = EEE_SUB_DEFS.find(t => t.id === tabId);
   if (def) $("#contentTitle").textContent = def.label;
+  else if (eeeDef) $("#contentTitle").textContent = eeeDef.label;
+
+  // Auto-expand EEE-Taxi group when a sub-tab is active
+  if (tabId.startsWith("eee-")) {
+    const parent = $("#eeeGroupParent");
+    const subNav = $("#eeeSubNav");
+    if (parent && !parent.classList.contains("open")) {
+      parent.classList.add("open");
+      subNav && subNav.classList.add("open");
+    }
+  }
 
   if (tabId === "billing") { showBillingDashboard(); }
   if (tabId === "dashboard") refreshDashboard();
@@ -1326,7 +1790,22 @@ function showBillingDashboard() {
   $("#billingDashboardView").classList.remove("hidden");
   $("#invoiceListView").classList.add("hidden");
   $("#invoiceDetailView").classList.add("hidden");
+  _updateWelcomeBanner();
   refreshBillingDashboard();
+}
+
+function _updateWelcomeBanner() {
+  const name = currentUser ? (currentUser.full_name || currentUser.email.split("@")[0]) : "";
+  const h = new Date().getHours();
+  const tod = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const now = new Date();
+  const dateStr = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  const el = $("#welcomeGreeting");
+  const sub = $("#welcomeSub");
+  if (el) el.textContent = `${tod}, ${name} 👋`;
+  if (sub) sub.textContent = dateStr;
 }
 
 async function refreshBillingDashboard() {
@@ -1403,16 +1882,36 @@ function renderInvoiceTable() {
   });
 }
 
+async function _downloadPdfWithAuth(apiUrl, filename) {
+  const resp = await fetch(apiUrl, { headers: { Authorization: `Bearer ${authToken}` } });
+  if (!resp.ok) throw new Error(resp.statusText);
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 async function previewPdf(invoiceId) {
   try {
-    const resp = await fetch(`/api/billing/invoices/${invoiceId}/pdf`, {
-      headers: { Authorization: `Bearer ${authToken}` }
-    });
-    if (!resp.ok) { alert("Could not load PDF. " + resp.statusText); return; }
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-  } catch(e) { alert("Error loading PDF: " + e.message); }
+    const name = (currentInvoice && currentInvoice.invoice_no_full)
+      ? `${currentInvoice.invoice_no_full}.pdf`
+      : `invoice_${invoiceId}.pdf`;
+    await _downloadPdfWithAuth(`/api/billing/invoices/${invoiceId}/pdf`, name);
+  } catch(e) { alert("Error downloading PDF: " + e.message); }
+}
+
+async function downloadSignedPdf(invoiceId) {
+  try {
+    const name = (currentInvoice && currentInvoice.invoice_no_full)
+      ? `${currentInvoice.invoice_no_full}_signed.pdf`
+      : `invoice_${invoiceId}_signed.pdf`;
+    await _downloadPdfWithAuth(`/api/billing/invoices/${invoiceId}/signed-pdf`, name);
+  } catch(e) { alert("Error downloading signed PDF: " + e.message); }
 }
 
 // ── Invoice list refresh (called on tab switch) ────────────────────────────
@@ -1485,7 +1984,33 @@ function setStep1Saved(saved) {
   badge.classList.toggle("done", saved);
   badge.textContent = saved ? "✓" : "1";
   $("#step1saved").classList.toggle("hidden", !saved);
+  // Lock / unlock the meta inputs
+  $("#invoiceSuffix").disabled = saved;
+  $("#invoiceDate").disabled = saved;
+  const saveBtn = $("#btnSaveMeta");
+  if (saveBtn) {
+    if (saved) {
+      saveBtn.textContent = "✏ Edit Details";
+      saveBtn.className = "btn secondary";
+      saveBtn.onclick = () => unlockInvoiceMeta();
+    } else {
+      saveBtn.textContent = "Save Details";
+      saveBtn.className = "btn";
+      saveBtn.onclick = () => saveInvoiceMeta();
+    }
+  }
   updateUploadLock();
+}
+
+function unlockInvoiceMeta() {
+  $("#invoiceSuffix").disabled = false;
+  $("#invoiceDate").disabled = false;
+  const saveBtn = $("#btnSaveMeta");
+  if (saveBtn) {
+    saveBtn.textContent = "Save Details";
+    saveBtn.className = "btn";
+    saveBtn.onclick = () => saveInvoiceMeta();
+  }
 }
 
 function updateUploadLock() {
@@ -1530,15 +2055,83 @@ $("#lrFile").addEventListener("change", e => {
   e.target.value = "";
 });
 
+// ── PDF page viewer state ─────────────────────────────────────────────────────
+let _pdfPages = [];      // array of blob URLs, one per rendered page
+let _pdfPageIdx = 0;
+let _pdfHandle = null;        // server-side filename returned by upload-pdf
+let _selectedPages = new Set(); // pages toggled for batch extraction
+
+function _showPdfPage(idx) {
+  _pdfPageIdx = idx;
+  const lbl = $("#pdfPageLabel");
+  if (lbl) lbl.textContent = `GCN ${idx + 1} / ${_pdfPages.length}`;
+  $("#btnPdfPrev").disabled = idx === 0;
+  $("#btnPdfNext").disabled = idx === _pdfPages.length - 1;
+  // Scroll to the corresponding LR card
+  const cards = document.querySelectorAll(".lr-card");
+  if (cards[idx]) cards[idx].scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function pdfNavPage(delta) {
+  const next = _pdfPageIdx + delta;
+  if (next >= 0 && next < _pdfPages.length) _showPdfPage(next);
+}
+
+async function _renderPdfPages(file) {
+  // Render each PDF page to an image blob using the browser's built-in PDF renderer
+  // via a hidden <iframe>+canvas trick — or, simpler: upload as-is and let the server
+  // render pages via the /pdf-page endpoint after save.
+  // Here we use a canvas + PDF.js-free approach: show the PDF in an <img> via object URL
+  // for single page, or render all pages to canvas via PDF.js if available.
+  // Simplest cross-browser approach: use <img> for images, and fetch rendered page images
+  // from the server for PDFs. Since we haven't uploaded yet, we render client-side using
+  // the File API + createImageBitmap (works for PDFs in Chrome/Edge via PDF rendering).
+  // Fallback: show a single generic PDF icon frame.
+
+  // Best approach without PDF.js: use an <embed> or show page-by-page via URL pages.
+  // For now: render the PDF in the viewer as a single blob (browser shows page 1),
+  // and use the arrows to navigate pages after upload completes.
+  // For PRE-upload navigation we use the PDF object URL with page hash.
+  _pdfPages = [];
+  const url = URL.createObjectURL(file);
+
+  // Get page count via PDF text (we can't render without PDF.js, so we just show the
+  // PDF as an image frame page-by-page using the blob URL + page fragment).
+  // Chrome/Edge support PDF rendering via <img> for page 1 only.
+  // We'll show page 1 now; after upload the server returns the page count.
+  _pdfPages.push(url);   // starts with single blob — nav will extend after upload
+  _pdfPageIdx = 0;
+  return url;
+}
+
 function selectFile(file) {
   pendingFile = file;
-  const url = URL.createObjectURL(file);
-  $("#previewImg").src = url;
+  const isPdf = file.name.toLowerCase().endsWith(".pdf");
   $("#previewFilename").textContent = file.name;
   $("#previewSize").textContent = fmtBytes(file.size);
   $("#uploadDropArea").classList.add("hidden");
   $("#uploadPreviewArea").classList.remove("hidden");
   $("#lrUploadStatus").textContent = "";
+
+  if (isPdf) {
+    const url = URL.createObjectURL(file);
+    _pdfPages = [url];
+    _pdfPageIdx = 0;
+    const iframe = $("#pdfIframe");
+    iframe.src = url;
+    iframe.classList.remove("hidden");
+    $("#previewImg").classList.add("hidden");
+    $("#pdfPageNav").classList.add("hidden");  // page selector replaces nav
+    const uploadBtn = $("#btnDoUpload");
+    if (uploadBtn) uploadBtn.textContent = "Upload PDF";
+  } else {
+    const url = URL.createObjectURL(file);
+    $("#previewImg").src = url;
+    $("#previewImg").classList.remove("hidden");
+    $("#pdfIframe").classList.add("hidden");
+    _pdfPages = [];
+    $("#pdfPageNav").classList.add("hidden");
+  }
   resetZoom();
   _setupUploadZoom();
 }
@@ -1547,38 +2140,146 @@ function clearPreview() {
   pendingFile = null;
   const img = $("#previewImg");
   if (img && img.src) URL.revokeObjectURL(img.src);
-  if (img) img.src = "";
+  if (img) { img.src = ""; img.classList.remove("hidden"); }
+  const iframe = $("#pdfIframe");
+  if (iframe) { try { URL.revokeObjectURL(iframe.src); } catch(_) {} iframe.src = "about:blank"; iframe.classList.add("hidden"); }
+  _pdfPages.forEach(u => { try { URL.revokeObjectURL(u); } catch(_) {} });
+  _pdfPages = [];
+  _pdfPageIdx = 0;
+  _pdfHandle = null;
+  _selectedPages = new Set();
+  $("#pdfPageNav").classList.add("hidden");
+  const sel = $("#pdfPageSelector");
+  if (sel) { sel.classList.add("hidden"); $("#pdfPageBtns").innerHTML = ""; }
   $("#uploadDropArea").classList.remove("hidden");
   $("#uploadPreviewArea").classList.add("hidden");
   $("#lrUploadStatus").textContent = "";
   const btn = $("#btnDoUpload");
-  if (btn) { btn.textContent = "Upload & Extract"; btn.onclick = () => doUpload(); btn.disabled = false; }
+  if (btn) { btn.textContent = "Upload & Extract"; btn.onclick = () => doUpload(); btn.disabled = false; btn.classList.remove("hidden"); }
   resetZoom();
 }
 
 async function doUpload() {
   if (!pendingFile || !currentInvoice) return;
   const file = pendingFile;
+  const isPdf = file.name.toLowerCase().endsWith(".pdf");
   $("#btnDoUpload").disabled = true;
-  $("#lrUploadStatus").innerHTML = `<span class="spinner"></span> Extracting fields from <b>${file.name}</b>... this may take ~20 seconds`;
-  const fd = new FormData();
-  fd.append("file", file);
-  try {
-    await fetch(`/api/billing/invoices/${currentInvoice.id}/lrs`, {
-      method: "POST", body: fd,
-      headers: { Authorization: `Bearer ${authToken}` },
-    }).then(async r => {
+
+  if (isPdf) {
+    // Step 1: just save the PDF and get page count — no Gemini calls yet
+    $("#lrUploadStatus").innerHTML = `<span class="spinner"></span> Uploading <b>${file.name}</b>...`;
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const r = await fetch(`/api/billing/invoices/${currentInvoice.id}/upload-pdf`, {
+        method: "POST", body: fd,
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText); }
-    });
-    // Keep image visible for reference — user can verify extracted fields
-    $("#lrUploadStatus").innerHTML = `<span class="text-ok">✓ Extraction complete — review and confirm fields below. Image kept for reference.</span>`;
-    $("#btnDoUpload").textContent = "Upload Another LR";
-    $("#btnDoUpload").disabled = false;
-    $("#btnDoUpload").onclick = () => { clearPreview(); };
-    await refreshCurrentInvoice();
-  } catch(e) {
-    $("#lrUploadStatus").innerHTML = `<span class="text-err">Error: ${e.message}</span>`;
-    $("#btnDoUpload").disabled = false;
+      const data = await r.json();
+      _pdfHandle = data.handle;
+      $("#lrUploadStatus").innerHTML =
+        `<span class="text-ok">✓ PDF uploaded (${data.total_pages} page${data.total_pages > 1 ? "s" : ""}). Click GCN pages below to extract — skip Tax Invoice pages.</span>`;
+      showPdfPageSelector(data.total_pages);
+      $("#btnDoUpload").classList.add("hidden");
+    } catch(e) {
+      $("#lrUploadStatus").innerHTML = `<span class="text-err">Error: ${e.message}</span>`;
+      $("#btnDoUpload").disabled = false;
+    }
+  } else {
+    // Image: single-shot extraction as before
+    $("#lrUploadStatus").innerHTML = `<span class="spinner"></span> Extracting fields from <b>${file.name}</b>... this may take ~20 seconds`;
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const r = await fetch(`/api/billing/invoices/${currentInvoice.id}/lrs`, {
+        method: "POST", body: fd,
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText); }
+      $("#lrUploadStatus").innerHTML = `<span class="text-ok">✓ Extraction complete — review and confirm fields below.</span>`;
+      $("#btnDoUpload").textContent = "Upload Another";
+      $("#btnDoUpload").disabled = false;
+      $("#btnDoUpload").onclick = () => { clearPreview(); };
+      await refreshCurrentInvoice();
+    } catch(e) {
+      $("#lrUploadStatus").innerHTML = `<span class="text-err">Error: ${e.message}</span>`;
+      $("#btnDoUpload").disabled = false;
+    }
+  }
+}
+
+function showPdfPageSelector(totalPages) {
+  _selectedPages = new Set();
+  const container = $("#pdfPageBtns");
+  container.innerHTML = "";
+  for (let i = 0; i < totalPages; i++) {
+    const btn = document.createElement("button");
+    btn.className = "btn secondary sm";
+    btn.style.minWidth = "80px";
+    btn.textContent = `Page ${i + 1}`;
+    btn.dataset.page = String(i);
+    btn.onclick = () => togglePageSelection(i, btn);
+    container.appendChild(btn);
+  }
+  const extractBtn = document.createElement("button");
+  extractBtn.id = "btnExtractSelected";
+  extractBtn.className = "btn sm";
+  extractBtn.textContent = "Extract Selected (0)";
+  extractBtn.disabled = true;
+  extractBtn.style.cssText = "margin-left:12px;";
+  extractBtn.onclick = () => extractSelectedPages();
+  container.appendChild(extractBtn);
+  const heading = container.previousElementSibling;
+  if (heading) heading.textContent = "Select GCN pages, then click Extract — skip Tax Invoice pages";
+  $("#pdfPageSelector").classList.remove("hidden");
+}
+
+function togglePageSelection(pageNum, btn) {
+  if (_selectedPages.has(pageNum)) {
+    _selectedPages.delete(pageNum);
+    btn.style.cssText = "min-width:80px;";
+  } else {
+    _selectedPages.add(pageNum);
+    btn.style.cssText = "min-width:80px;background:var(--accent);color:#0c1322;border-color:var(--accent);";
+  }
+  const extractBtn = $("#btnExtractSelected");
+  if (extractBtn) {
+    extractBtn.textContent = `Extract Selected (${_selectedPages.size})`;
+    extractBtn.disabled = _selectedPages.size === 0;
+  }
+}
+
+async function extractSelectedPages() {
+  const pages = [..._selectedPages].sort((a, b) => a - b);
+  if (!pages.length || !currentInvoice || !_pdfHandle) return;
+  const extractBtn = $("#btnExtractSelected");
+  if (extractBtn) { extractBtn.disabled = true; extractBtn.innerHTML = `<span class="spinner"></span> Extracting...`; }
+  let anyError = false;
+  for (let i = 0; i < pages.length; i++) {
+    const pageNum = pages[i];
+    if (i > 0) await new Promise(r => setTimeout(r, 4000)); // brief gap so Gemini isn't hit back-to-back
+    const btn = document.querySelector(`#pdfPageBtns button[data-page="${pageNum}"]`);
+    if (btn) { btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>`; }
+    try {
+      const r = await fetch(`/api/billing/invoices/${currentInvoice.id}/extract-page`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ handle: _pdfHandle, page_num: pageNum }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText); }
+      if (btn) { btn.textContent = `Page ${pageNum + 1} ✓`; btn.style.cssText = "min-width:80px;opacity:0.6;"; }
+    } catch(e) {
+      anyError = true;
+      if (btn) { btn.disabled = false; btn.textContent = `Page ${pageNum + 1}`; btn.style.cssText = "min-width:80px;background:var(--err-bg);color:var(--err);border-color:var(--err);"; }
+      $("#lrUploadStatus").innerHTML = `<span class="text-err">Page ${pageNum + 1}: ${e.message}</span>`;
+    }
+  }
+  _selectedPages.clear();
+  await refreshCurrentInvoice();
+  if (extractBtn) { extractBtn.textContent = "Extract Selected (0)"; extractBtn.disabled = true; }
+  if (!anyError) {
+    $("#lrUploadStatus").innerHTML = `<span class="text-ok">✓ Extracted ${pages.length} page(s) — review and confirm fields below.</span>`;
   }
 }
 
@@ -1592,7 +2293,10 @@ async function refreshCurrentInvoice() {
 function renderLRs() {
   const c = $("#lrList");
   c.innerHTML = "";
-  if (!currentInvoice.lrs || !currentInvoice.lrs.length) {
+  const hasLrs = currentInvoice.lrs && currentInvoice.lrs.length > 0;
+  const amtSection = $("#invoiceAmtSection");
+  if (amtSection) amtSection.classList.toggle("hidden", !hasLrs);
+  if (!hasLrs) {
     c.innerHTML = `<div class="placeholder">No LRs uploaded yet.</div>`;
     return;
   }
@@ -1601,8 +2305,7 @@ function renderLRs() {
 
 function renderOneLR(lr) {
   const fields = lr.confirmed_fields || lr.extracted_fields || {};
-  const doRows = fields.do_rows || [{ delivery_order_no: "", total_amount: "" }];
-  const totalAmount = doRows.find(r => r.total_amount)?.total_amount || "";
+  const doRows = fields.do_rows || [{ delivery_order_no: "" }];
   const extractionNote = fields._extraction_note || "";
   const noteIsError = extractionNote.toLowerCase().includes("failed") || extractionNote.toLowerCase().includes("easyocr");
 
@@ -1612,11 +2315,12 @@ function renderOneLR(lr) {
 
   const rawOcr = (lr.ocr_text || "").replace(/</g, "&lt;");
 
+  const gcnLabel = fields.gcn_no ? ` — GCN ${fields.gcn_no}` : "";
   wrap.innerHTML = `
     <div class="lr-card-head">
       <div style="display:flex;align-items:center;gap:10px;">
         <span class="badge ${lr.status}">${lr.status.replace(/_/g," ")}</span>
-        <span style="font-weight:600;font-size:13px;">${lr.original_filename}</span>
+        <span style="font-weight:600;font-size:13px;">${lr.original_filename}${gcnLabel}</span>
       </div>
       <button class="btn danger sm" onclick="removeLR('${lr.id}')">Remove</button>
     </div>
@@ -1627,12 +2331,6 @@ function renderOneLR(lr) {
         <div class="do-section-title">Delivery Order Numbers</div>
         <div id="do-nos-${lr.id}"></div>
         <button class="btn ghost sm" id="do-add-${lr.id}" style="margin-top:6px;" onclick="addDoNo('${lr.id}')">+ Add DO Number</button>
-        <div class="do-total-row">
-          <label class="field">Total Amount (₹) — for all DOs on this LR</label>
-          <input type="text" data-lr="${lr.id}" data-key="total_amount"
-            value="${totalAmount.replace(/"/g,'&quot;')}" placeholder="e.g. 25000" />
-          <div class="field-hint" id="total-hint-${lr.id}"></div>
-        </div>
       </div>
       <details class="ocr-details">
         <summary>Show raw OCR / extracted JSON (debug)</summary>
@@ -1714,14 +2412,15 @@ function addDoNo(lrId) { $(`#do-nos-${lrId}`).appendChild(buildDoNoRow(lrId, "")
 function collectLRFields(lrId) {
   const out = {};
   document.querySelectorAll(`input[data-lr="${lrId}"]`).forEach(inp => { out[inp.dataset.key] = inp.value.trim(); });
-  const totalAmount = out.total_amount || "";
-  delete out.total_amount;
   const doNos = [];
   document.querySelectorAll(`#do-nos-${lrId} input[data-field="delivery_order_no"]`).forEach(inp => {
     if (inp.value.trim()) doNos.push(inp.value.trim());
   });
   if (!doNos.length) doNos.push("");
-  out.do_rows = doNos.map((no, i) => ({ delivery_order_no: no, total_amount: i === 0 ? totalAmount : "" }));
+  // Amount lives at invoice level; only the first LR stores it in its first DO row
+  const isFirstLr = currentInvoice.lrs && currentInvoice.lrs[0] && String(currentInvoice.lrs[0].id) === String(lrId);
+  const amt = isFirstLr ? ($("#invoiceFreightAmtInput")?.value.trim() || "") : "";
+  out.do_rows = doNos.map((no, i) => ({ delivery_order_no: no, total_amount: i === 0 ? amt : "" }));
   return out;
 }
 
@@ -1747,11 +2446,12 @@ function validateLRFields(lrId) {
       valid = false;
     }
   }
-  const amtInp = document.querySelector(`input[data-lr="${lrId}"][data-key="total_amount"]`);
-  const amtHint = $(`#total-hint-${lrId}`);
+  // Invoice-level freight amount — required on any LR confirm
+  const amtInp = $("#invoiceFreightAmtInput");
+  const amtHint = $("#invoiceAmtHint");
   if (amtInp && !amtInp.value.trim()) {
     amtInp.classList.add("invalid");
-    if (amtHint) { amtHint.textContent = "Total amount is required."; amtHint.className = "field-hint err"; }
+    if (amtHint) { amtHint.textContent = "Required — enter Invoice Freight Amount above."; amtHint.className = "field-hint err"; }
     valid = false;
   } else if (amtInp) {
     amtInp.classList.remove("invalid");
@@ -1805,7 +2505,7 @@ function updateGenerateButtons() {
   $("#btnSignPdf").disabled = !hasPdf;
   $("#btnSignPdf").textContent = hasSigned ? "🔏 Re-sign PDF (DSC)" : "🔏 Sign PDF (DSC)";
   $("#btnDownloadSignedPdf").disabled = !hasSigned;
-  if (hasSigned) $("#btnDownloadSignedPdf").onclick = () => window.open(`/api/billing/invoices/${currentInvoice.id}/signed-pdf`);
+  if (hasSigned) $("#btnDownloadSignedPdf").onclick = () => downloadSignedPdf(currentInvoice.id);
 
   const step3b = $("#step3badge");
   step3b.classList.toggle("done", hasConfirmed);
@@ -1845,7 +2545,7 @@ async function doSignPdf() {
       body: JSON.stringify({ pin }),
     });
     closePinModal();
-    $("#generateStatus").innerHTML = `<span class="text-ok">✓ PDF signed — <a href="/api/billing/invoices/${currentInvoice.id}/signed-pdf" target="_blank">Download Signed PDF ↗</a></span>`;
+    $("#generateStatus").innerHTML = `<span class="text-ok">✓ PDF signed — <a href="#" onclick="downloadSignedPdf('${currentInvoice.id}');return false;">Download Signed PDF ↗</a></span>`;
     updateGenerateButtons();
   } catch(e) {
     $("#btnPinSign").disabled = false;
@@ -1898,6 +2598,241 @@ fetch("/api/auth/needs-setup").then(r => r.json()).then(d => {
     loadCurrentUser();
   }
 }).catch(() => loadCurrentUser());
+
+// ── EEE-Taxi billing ─────────────────────────────────────────────────────────
+
+let _eetBatchId   = null;
+let _eetPollTimer    = null;
+let _eetCsvFile      = null;   // original File object, re-sent to /batch
+let _eetCalcCsvBlob  = null;   // calculated CSV blob for download
+let _eetCalcFilename = "calculated.csv";
+
+function eetTogglePinField() {
+  const isDummy = document.getElementById("eetSignModeDummy").checked;
+  document.getElementById("eetPinGroup").style.display = isDummy ? "none" : "";
+}
+
+function eetReset() {
+  clearInterval(_eetPollTimer);
+  _eetBatchId      = null;
+  _eetCsvFile      = null;
+  _eetCalcCsvBlob  = null;
+  _eetCalcFilename = "calculated.csv";
+  document.getElementById("eetCsvFile").value = "";
+  document.getElementById("eetModifiedCsvFile").value = "";
+  document.getElementById("eetPhase1Error").textContent = "";
+  document.getElementById("eetPhase1").style.display = "";
+  document.getElementById("eetPhase2").style.display = "none";
+  document.getElementById("eetInvoiceList").innerHTML = "";
+  document.getElementById("eetBatchMeta").style.display = "none";
+  ["eetDownloadAllBtn","eetDownloadP2pBtn","eetDownloadRentalBtn"].forEach(id => {
+    document.getElementById(id).style.display = "none";
+  });
+}
+
+function eetDownloadCalcCsv() {
+  if (!_eetCalcCsvBlob) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(_eetCalcCsvBlob);
+  a.download = _eetCalcFilename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function eetUploadAndCalculate() {
+  const fileInput = document.getElementById("eetCsvFile");
+  const errEl     = document.getElementById("eetPhase1Error");
+  if (!fileInput.files.length) { errEl.textContent = "Please select a CSV file."; return; }
+
+  errEl.textContent = "";
+  const btn = document.querySelector("#eetPhase1 .btn");
+  btn.disabled    = true;
+  btn.textContent = "Calculating...";
+
+  const fd = new FormData();
+  fd.append("csv_file", fileInput.files[0]);
+
+  fetch("/api/eee-taxi/calculate", { method: "POST", body: fd })
+    .then(res => {
+      btn.disabled    = false;
+      btn.textContent = "Upload & Calculate";
+      if (!res.ok) {
+        return res.text().then(t => {
+          try { const e = JSON.parse(t); errEl.textContent = e.detail || "Error calculating fares."; }
+          catch { errEl.textContent = `Server error (${res.status}) — check server logs for details.`; }
+        });
+      }
+
+      const total  = res.headers.get("X-Total-Count")  || "?";
+      const p2p    = res.headers.get("X-P2P-Count")    || "0";
+      const rental = res.headers.get("X-Rental-Count") || "0";
+      const cd     = res.headers.get("Content-Disposition") || "";
+      _eetCalcFilename = cd.match(/filename="([^"]+)"/)?.[1] || "calculated.csv";
+      _eetCsvFile = fileInput.files[0];
+
+      return res.blob().then(blob => {
+        _eetCalcCsvBlob = blob;
+        const summary = document.getElementById("eetCalcSummary");
+        summary.innerHTML =
+          `<span style="color:#22c55e;font-weight:600;">Fares calculated — ${total} rows</span><br>` +
+          `P2P: <b>${p2p}</b> &nbsp;|&nbsp; Rental: <b>${rental}</b><br>` +
+          `Download the CSV to verify figures. Edit <b>Calc_Trip_Fare</b> if needed,<br>` +
+          `then re-upload below — or proceed directly without changes.`;
+        document.getElementById("eetPhase1").style.display = "none";
+        document.getElementById("eetPhase2").style.display = "";
+      });
+    })
+    .catch(e => {
+      btn.disabled    = false;
+      btn.textContent = "Upload & Calculate";
+      errEl.textContent = "Error: " + e;
+    });
+}
+
+function eetProceed() {
+  if (!_eetCsvFile) { alert("Please go back and upload a CSV first."); return; }
+
+  const reviewInput = document.getElementById("eetModifiedCsvFile");
+  const invDate     = document.getElementById("eetInvDate").value;
+  const suffix      = document.getElementById("eetStartSuffix").value;
+  const signMode    = document.querySelector('input[name="eetSignMode"]:checked').value;
+  const pin         = document.getElementById("eetPin").value;
+
+  if (!invDate)               { alert("Please select an invoice date."); return; }
+  if (!suffix || +suffix < 1) { alert("Please enter a valid starting suffix."); return; }
+  if (signMode === "usb" && !pin) { alert("Please enter the DSC PIN for USB signing."); return; }
+
+  clearInterval(_eetPollTimer);
+  _eetBatchId = null;
+  document.getElementById("eetInvoiceList").innerHTML = "";
+  ["eetDownloadAllBtn","eetDownloadP2pBtn","eetDownloadRentalBtn"].forEach(id => {
+    document.getElementById(id).style.display = "none";
+  });
+  document.getElementById("eetBatchSummary").textContent = "Submitting batch...";
+  document.getElementById("eetBatchMeta").style.display = "none";
+
+  const fd = new FormData();
+  fd.append("csv_file",     _eetCsvFile);
+  fd.append("invoice_date", invDate);
+  fd.append("start_suffix", suffix);
+  fd.append("sign_mode",    signMode);
+  fd.append("pin",          pin);
+  if (reviewInput && reviewInput.files.length) {
+    fd.append("calc_csv", reviewInput.files[0]);
+  }
+
+  fetch("/api/eee-taxi/batch", { method: "POST", body: fd })
+    .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Error")))
+    .then(d => {
+      _eetBatchId = d.batch_id;
+      const parts = ["Total: " + d.total_rows + " rows"];
+      if (d.p2p_count)    parts.push("P2P: " + d.p2p_count);
+      if (d.rental_count) parts.push("Rental: " + d.rental_count);
+      const meta = document.getElementById("eetBatchMeta");
+      meta.style.display = "";
+      meta.textContent   = parts.join("  |  ");
+      _eetPollTimer = setInterval(eetPollBatch, 2000);
+      eetPollBatch();
+    })
+    .catch(e => { alert("Failed to start batch: " + e); });
+}
+
+function eetPollBatch() {
+  if (!_eetBatchId) return;
+  fetch("/api/eee-taxi/batch/" + _eetBatchId)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (!d) return;
+      eetRenderSummary(d);
+      eetRenderInvoices(d.invoices);
+      const finished = ["completed","partial","failed"].includes(d.status);
+      if (finished) {
+        clearInterval(_eetPollTimer);
+        if (d.status !== "failed") {
+          document.getElementById("eetDownloadAllBtn").style.display = "";
+          if (d.p2p_done    > 0) document.getElementById("eetDownloadP2pBtn").style.display    = "";
+          if (d.rental_done > 0) document.getElementById("eetDownloadRentalBtn").style.display = "";
+        }
+      }
+    })
+    .catch(() => {});
+}
+
+function eetRenderSummary(d) {
+  const label = { pending:"Pending", processing:"Processing...",
+    completed:"Completed", partial:"Partially done", failed:"Failed" };
+  document.getElementById("eetBatchSummary").innerHTML =
+    "<b>" + (label[d.status] || d.status) + "</b> &mdash; " +
+    d.done + " done, " + d.failed + " failed of " + d.total_rows + " total";
+}
+
+function eetRenderInvoices(invoices) {
+  const list = document.getElementById("eetInvoiceList");
+  list.innerHTML = "";
+  (invoices || []).forEach(inv => {
+    const statusColor = { pending:"#888", generating:"#f59e0b",
+      done:"#22c55e", failed:"#ef4444" };
+    const color = statusColor[inv.status] || "#888";
+    const typeTag = inv.booking_type
+      ? `<span style="font-size:10px;background:${inv.booking_type==='rental'?'#7c3aed':'#0284c7'};
+             color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle;">
+           ${inv.booking_type.toUpperCase()}
+         </span>`
+      : "";
+    const dlBtn = (inv.status === "done" && inv.has_signed_pdf)
+      ? `<button class="btn secondary sm"
+           onclick="eetDownloadOne('${inv.id}')" style="font-size:11px;padding:3px 10px;">
+           Download
+         </button>`
+      : "";
+    const errHtml = inv.error_message
+      ? `<div style="font-size:11px;color:#ef4444;margin-top:3px;
+                     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+              title="${inv.error_message.replace(/"/g,'&quot;')}">
+           ${inv.error_message}
+         </div>`
+      : "";
+    const card = document.createElement("div");
+    card.style.cssText =
+      "background:var(--surface2);border-radius:8px;padding:10px 14px;" +
+      "border-left:3px solid " + color + ";display:flex;justify-content:space-between;" +
+      "align-items:center;gap:10px;";
+    card.innerHTML =
+      `<div style="min-width:0;flex:1;">
+         <div style="font-size:13px;font-weight:600;color:var(--text);">
+           ${inv.invoice_no || ("Row " + inv.row_index)}${typeTag}
+         </div>
+         <div style="font-size:11px;color:var(--text-dim);white-space:nowrap;
+                     overflow:hidden;text-overflow:ellipsis;">
+           ${inv.entity_name || inv.client_gstin || ""}
+         </div>
+         ${errHtml}
+       </div>
+       <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+         <span style="font-size:11px;color:${color};font-weight:600;text-transform:uppercase;">
+           ${inv.status}
+         </span>
+         ${dlBtn}
+       </div>`;
+    list.appendChild(card);
+  });
+}
+
+function eetDownloadOne(invoiceId) {
+  if (!_eetBatchId) return;
+  window.location.href = "/api/eee-taxi/batch/" + _eetBatchId +
+    "/invoice/" + invoiceId + "/download";
+}
+
+function eetDownloadAll()    { if (_eetBatchId) window.location.href = "/api/eee-taxi/batch/" + _eetBatchId + "/download-all"; }
+function eetDownloadP2p()    { if (_eetBatchId) window.location.href = "/api/eee-taxi/batch/" + _eetBatchId + "/download-p2p"; }
+function eetDownloadRental() { if (_eetBatchId) window.location.href = "/api/eee-taxi/batch/" + _eetBatchId + "/download-rental"; }
+
+// Set today as default invoice date on tab load
+(function() {
+  const el = document.getElementById("eetInvDate");
+  if (el && !el.value) el.value = new Date().toISOString().slice(0,10);
+})();
 </script>
 </body>
 </html>

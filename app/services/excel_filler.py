@@ -26,6 +26,7 @@ The template is loaded from app/templates/swaraj_invoice_gujarat.xlsx.
 """
 from __future__ import annotations
 
+import re
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -63,23 +64,45 @@ def _to_decimal(amount: Any) -> Decimal:
     return Decimal(str(amount).replace(",", "").strip() or "0")
 
 
-def build_rows(lrs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Flatten the LR list into one Excel row per Delivery Order No.
-
-    Each input dict is an LR.confirmed_fields. Output is a list of row dicts
-    with keys matching the cell map (delivery_order_no, gcn_no, gcn_date, ...).
-    """
-    rows: list[dict[str, Any]] = []
+def _sum_qty(lrs: list[dict[str, Any]]) -> int:
+    total = 0
     for lr in lrs:
-        do_rows = lr.get("do_rows") or []
-        if not do_rows:
-            do_rows = [{"delivery_order_no": "", "total_amount": ""}]
+        m = re.search(r"(\d+)", str(lr.get("qty") or ""))
+        if m:
+            total += int(m.group(1))
+    return total
+
+
+def build_rows(lrs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Flatten confirmed LR list into Excel rows using the stacking rule.
+
+    Single LR (image upload):
+      One row per DO. Each row gets all LR fields + its own total_amount.
+
+    Multiple LRs (PDF upload — up to 3 GCNs):
+      Stacking rule agreed with user:
+        - Column C (DO#):         all DOs from all LRs stacked one under another
+        - Column D (LR/GCN No):   all GCN numbers stacked (one per LR)
+        - Column E (LR Date):     first row only (common)
+        - Column F (Vehicle No):  first row only (common)
+        - Column G (Destination): all destinations stacked (one per LR)
+        - Column H (Del. Date):   first row only (common)
+        - Column I (Qty):         first row only — combined total across all LRs
+        - Column L (Amount):      first row only — freight amount entered by user
+    """
+    if not lrs:
+        return []
+
+    if len(lrs) == 1:
+        # Single LR — original per-DO behaviour preserved
+        lr = lrs[0]
+        do_rows = lr.get("do_rows") or [{"delivery_order_no": "", "total_amount": ""}]
+        rows = []
         for idx, do in enumerate(do_rows):
             first = idx == 0
             rows.append({
                 "delivery_order_no": (do.get("delivery_order_no") or "").strip(),
-                "gcn_no": (lr.get("gcn_no") or "").strip(),
-                # Subsequent DO rows of the same LR: leave detail columns blank
+                "gcn_no":        (lr.get("gcn_no") or "").strip(),
                 "gcn_date":      (lr.get("gcn_date") or "").strip() if first else "",
                 "vehicle_no":    (lr.get("vehicle_no") or "").strip() if first else "",
                 "destination":   (lr.get("destination") or "").strip() if first else "",
@@ -87,6 +110,39 @@ def build_rows(lrs: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "qty":           (lr.get("qty") or "").strip() if first else "",
                 "total_amount":  (do.get("total_amount") or "").strip(),
             })
+        return rows
+
+    # Multiple LRs (PDF) — stacking rule
+    all_dos: list[dict] = []
+    for lr in lrs:
+        for do in (lr.get("do_rows") or [{"delivery_order_no": "", "total_amount": ""}]):
+            all_dos.append(do)
+
+    gcn_numbers  = [(lr.get("gcn_no") or "").strip() for lr in lrs]
+    destinations = [(lr.get("destination") or "").strip() for lr in lrs]
+
+    first_lr = lrs[0]
+    common_gcn_date      = (first_lr.get("gcn_date") or "").strip()
+    common_vehicle       = (first_lr.get("vehicle_no") or "").strip()
+    common_delivery_date = (first_lr.get("delivery_date") or "").strip()
+    total_qty = _sum_qty(lrs)
+    qty_display = f"{total_qty} Units" if total_qty > 0 else (first_lr.get("qty") or "").strip()
+
+    # Freight amount: take from the first DO of the first LR
+    first_amount = (all_dos[0].get("total_amount") or "").strip() if all_dos else ""
+
+    rows = []
+    for i, do in enumerate(all_dos):
+        rows.append({
+            "delivery_order_no": (do.get("delivery_order_no") or "").strip(),
+            "gcn_no":        gcn_numbers[i]  if i < len(gcn_numbers)  else "",
+            "gcn_date":      common_gcn_date      if i == 0 else "",
+            "vehicle_no":    common_vehicle        if i == 0 else "",
+            "destination":   destinations[i] if i < len(destinations) else "",
+            "delivery_date": common_delivery_date  if i == 0 else "",
+            "qty":           qty_display           if i == 0 else "",
+            "total_amount":  first_amount          if i == 0 else "",
+        })
     return rows
 
 

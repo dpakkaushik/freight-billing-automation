@@ -17,12 +17,12 @@ from pathlib import Path
 from loguru import logger
 
 PKCS11_LIB = r"C:\Windows\System32\CryptoIDA_pkcs11.dll"
-CERT_LABEL  = "cont_333741d242fc5a8c459f"
+CERT_LABEL  = "cont_333741d242fc5a8c459f"   # update if cert was renewed
 SLOT_NO     = 0
 
-# Signature box on the invoice PDF (PDF points, origin bottom-left of page).
-# (x1, y1, x2, y2) — bottom-left origin.  Placed in the Authorised Signatory zone.
-SIG_BOX = (18, 82, 275, 128)   # measured: For Pallia y=144.8-153.1, Auth Signatory y=90.8-109.7
+# Fallback signature box used only when auto-detection fails.
+# (x1, y1, x2, y2) — PDF points, origin bottom-left of page.
+_SIG_BOX_FALLBACK = (18, 82, 275, 128)
 
 # Timestamp format matching Adobe's display: "2026.05.13 14:50:06 +05'30'"
 _TS_FMT = "%Y.%m.%d %H:%M:%S +05'30'"
@@ -135,6 +135,60 @@ def _build_appearance_image(signer_name: str, timestamp_str: str):
     return img
 
 
+# ── Signature-zone detection ─────────────────────────────────────────────────
+
+def _find_signature_box(pdf_path: Path) -> tuple[float, float, float, float]:
+    """Scan the first page for 'For Pallia Trans' and 'Authorised Signatory' text,
+    then return a box (x1, y1, x2, y2) that fits between them.
+
+    Falls back to _SIG_BOX_FALLBACK if either anchor cannot be located or the
+    detected gap is too small to hold the stamp (< 30 pts).
+    """
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(str(pdf_path))
+        page = reader.pages[0]
+        page_width = float(page.mediabox.width)
+
+        found: dict[str, float] = {}   # key → absolute page y of the text baseline
+
+        def _visit(text: str, cm, tm, font_dict, font_size):
+            # Absolute y = current-transformation y + text-matrix y
+            y = (cm[5] if cm else 0.0) + tm[5]
+            t = text.strip()
+            if not t:
+                return
+            if "For Pallia" in t and "for_pallia" not in found:
+                found["for_pallia"] = y
+                logger.debug("Detected 'For Pallia Trans' at y={:.1f}", y)
+            if ("Authorised" in t or "Authorized" in t) and "auth_sig" not in found:
+                found["auth_sig"] = y
+                logger.debug("Detected 'Authorised Signatory' at y={:.1f}", y)
+
+        page.extract_text(visitor_text=_visit)
+
+        if "for_pallia" in found and "auth_sig" in found:
+            y_top    = max(found["for_pallia"], found["auth_sig"])   # higher on page
+            y_bottom = min(found["for_pallia"], found["auth_sig"])   # lower on page
+            gap      = y_top - y_bottom
+            logger.info(
+                "Sig anchors — For Pallia y={:.1f}, Auth Signatory y={:.1f}, gap={:.1f} pts",
+                found["for_pallia"], found["auth_sig"], gap,
+            )
+            if gap >= 30:
+                margin = 4.0
+                x2  = page_width * 0.46    # left ~46 % of page width
+                box = (18.0, y_bottom + margin, x2, y_top - margin)
+                logger.info("Auto-detected sig box: {}", tuple(round(v, 1) for v in box))
+                return box
+            logger.warning("Detected gap {:.1f} pts is too small; using fallback box.", gap)
+    except Exception as exc:
+        logger.warning("Sig-zone auto-detection failed ({}); using fallback box.", exc)
+
+    logger.warning("Using fallback SIG_BOX {}.", _SIG_BOX_FALLBACK)
+    return _SIG_BOX_FALLBACK
+
+
 # ── CN extraction from certificate ───────────────────────────────────────────
 
 def _extract_cn(cert) -> str:
@@ -158,6 +212,51 @@ def _extract_cn(cert) -> str:
     except Exception:
         pass
     return "Authorised Signatory"
+
+
+# ── Certificate discovery ─────────────────────────────────────────────────────
+
+def list_token_certs(pin: str) -> list[str]:
+    """Return all certificate labels present on the USB token.
+
+    Useful for diagnosing a wrong/stale CERT_LABEL after a DSC renewal.
+    """
+    try:
+        from pyhanko.sign.pkcs11 import open_pkcs11_session
+    except ImportError as exc:
+        raise SigningError("pyhanko not installed. Run: pip install pyhanko[pkcs11]") from exc
+
+    try:
+        session_ctx = open_pkcs11_session(
+            lib_location=PKCS11_LIB,
+            slot_no=SLOT_NO,
+            user_pin=pin,
+        )
+    except Exception as exc:
+        err = str(exc)
+        if any(k in err for k in ("CKR_TOKEN_NOT_PRESENT", "CKR_SLOT_ID_INVALID",
+                                   "No module", "CKR_GENERAL_ERROR")):
+            raise TokenNotFound("USB token not found.") from exc
+        if any(k in err for k in ("CKR_PIN_INCORRECT", "CKR_PIN_LOCKED")):
+            raise WrongPIN("Incorrect PIN.") from exc
+        raise SigningError(f"Could not open token: {exc}") from exc
+
+    labels: list[str] = []
+    try:
+        with session_ctx as session:
+            try:
+                import pkcs11 as _p11
+                for obj in session.get_objects({_p11.Attribute.CLASS: _p11.ObjectClass.CERTIFICATE}):
+                    try:
+                        label = obj[_p11.Attribute.LABEL]
+                        labels.append(label if isinstance(label, str) else label.decode("utf-8", errors="replace"))
+                    except Exception:
+                        pass
+            except Exception as exc:
+                logger.warning("Could not enumerate token certs: {}", exc)
+    except Exception:
+        pass
+    return labels
 
 
 # ── Main signing function ─────────────────────────────────────────────────────
@@ -203,12 +302,47 @@ def sign_invoice_pdf(pdf_path: Path, pin: str) -> Path:
 
     try:
         with session_ctx as session:
-            cms_signer = PKCS11Signer(
-                pkcs11_session=session,
-                cert_label=CERT_LABEL,
-            )
+            # Try the configured label first; if not found, fall back to auto-discover.
+            cert_label_to_use: str | None = CERT_LABEL
+            try:
+                cms_signer = PKCS11Signer(
+                    pkcs11_session=session,
+                    cert_label=cert_label_to_use,
+                )
+                # Force cert resolution now so we catch label-not-found here.
+                _ = cms_signer.signing_cert
+            except Exception as probe_exc:
+                if "Could not find certificate" in str(probe_exc):
+                    # DSC was likely renewed — enumerate and use the first available cert.
+                    try:
+                        import pkcs11 as _p11
+                        available: list[str] = []
+                        for obj in session.get_objects(
+                            {_p11.Attribute.CLASS: _p11.ObjectClass.CERTIFICATE}
+                        ):
+                            try:
+                                lbl = obj[_p11.Attribute.LABEL]
+                                available.append(
+                                    lbl if isinstance(lbl, str)
+                                    else lbl.decode("utf-8", errors="replace")
+                                )
+                            except Exception:
+                                pass
+                        logger.warning(
+                            "Cert label '{}' not found on token. "
+                            "Available labels: {}. Using auto-discover.",
+                            CERT_LABEL, available or ["<none found>"],
+                        )
+                    except Exception:
+                        logger.warning(
+                            "Cert label '{}' not found and could not enumerate token certs.",
+                            CERT_LABEL,
+                        )
+                    cert_label_to_use = None
+                    cms_signer = PKCS11Signer(pkcs11_session=session, cert_label=None)
+                else:
+                    raise
 
-            # Read signer name from the DSC certificate for the visual appearance
             try:
                 signer_name = _extract_cn(cms_signer.signing_cert)
             except Exception:
@@ -217,13 +351,14 @@ def sign_invoice_pdf(pdf_path: Path, pin: str) -> Path:
 
             timestamp_str = datetime.now().strftime(_TS_FMT)
 
-            # Build the Adobe-like two-column appearance image
-            appearance_img   = _build_appearance_image(signer_name, timestamp_str)
+            appearance_img = _build_appearance_image(signer_name, timestamp_str)
             stamp_style = StaticStampStyle(
                 background=PdfImage(appearance_img),
                 border_width=0,
                 background_opacity=1.0,
             )
+
+            sig_box = _find_signature_box(pdf_path)
 
             pdf_signer_obj = PdfSigner(
                 signature_meta=signers.PdfSignatureMetadata(
@@ -234,7 +369,7 @@ def sign_invoice_pdf(pdf_path: Path, pin: str) -> Path:
                 new_field_spec=SigFieldSpec(
                     sig_field_name="AuthorisedSignatory",
                     on_page=0,
-                    box=SIG_BOX,
+                    box=sig_box,
                 ),
             )
 

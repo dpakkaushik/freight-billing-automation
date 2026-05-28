@@ -23,6 +23,7 @@ from app import __version__
 from app.api import billing as billing_api
 from app.api import auth as auth_api
 from app.api import dashboard as dashboard_api
+from app.api import eee_taxi as eee_taxi_api
 from app.config import settings
 from app.database import SessionLocal, init_db
 from app.models import ApiUsageEvent, User
@@ -49,6 +50,7 @@ app = FastAPI(
 app.include_router(auth_api.router)
 app.include_router(billing_api.router)
 app.include_router(dashboard_api.router)
+app.include_router(eee_taxi_api.router)
 
 
 @app.middleware("http")

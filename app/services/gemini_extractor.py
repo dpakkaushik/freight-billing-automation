@@ -6,6 +6,7 @@ Raises GeminiUnavailable so callers can fall back to EasyOCR gracefully.
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -59,8 +60,25 @@ _PROMPT = (
 )
 
 
-def extract_lr_fields_gemini(image_path: str | Path) -> dict[str, Any]:
-    """Extract LR fields using the Gemini vision API."""
+def _load_image(path: Path, page_num: int | None) -> Image.Image:
+    """Return a PIL Image — from an image file, or a rendered PDF page."""
+    if path.suffix.lower() == ".pdf" and page_num is not None:
+        import io
+        import fitz  # pymupdf
+        doc = fitz.open(str(path))
+        page = doc[page_num]
+        pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+        img_bytes = pix.tobytes("jpeg")
+        doc.close()
+        return Image.open(io.BytesIO(img_bytes))
+    return Image.open(path)
+
+
+def extract_lr_fields_gemini(image_path: str | Path, page_num: int | None = None) -> dict[str, Any]:
+    """Extract LR fields using the Gemini vision API.
+
+    Pass page_num (0-based) when image_path is a PDF to extract a specific page.
+    """
     path = Path(image_path)
     if not path.exists():
         raise ValueError(f"Image not found: {path}")
@@ -71,24 +89,37 @@ def extract_lr_fields_gemini(image_path: str | Path) -> dict[str, Any]:
             "Get a free key at https://aistudio.google.com/apikey"
         )
 
-    img = Image.open(path)
+    img = _load_image(path, page_num)
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
 
-    logger.info("Sending image to Gemini | file={} size={}", path.name, img.size)
+    page_info = f" page={page_num + 1}" if page_num is not None else ""
+    logger.info("Sending image to Gemini | file={} size={}{}", path.name, img.size, page_info)
 
-    try:
-        client = genai.Client(api_key=settings.gemini_api_key)
-        response = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=[_PROMPT, img],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0,
-            ),
-        )
-    except Exception as exc:
-        raise GeminiUnavailable(f"Gemini API error: {exc}") from exc
+    client = genai.Client(api_key=settings.gemini_api_key)
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        if attempt > 0:
+            wait = 4 * attempt  # 4s, 8s
+            logger.info("Gemini 503 on attempt {}, retrying in {}s…", attempt, wait)
+            time.sleep(wait)
+        try:
+            response = client.models.generate_content(
+                model=settings.gemini_model,
+                contents=[_PROMPT, img],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0,
+                ),
+            )
+            last_exc = None
+            break
+        except Exception as exc:
+            last_exc = exc
+            if "503" not in str(exc) and "UNAVAILABLE" not in str(exc):
+                raise GeminiUnavailable(f"Gemini API error: {exc}") from exc
+    if last_exc is not None:
+        raise GeminiUnavailable(f"Gemini API error after 3 attempts: {last_exc}") from last_exc
 
     raw = response.text
     logger.debug("Gemini raw response ({} chars): {}", len(raw), raw[:300])

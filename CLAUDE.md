@@ -235,6 +235,8 @@ To wipe state and start fresh: `Remove-Item data\app.db` (and optionally `Remove
 
 10. **EasyOCR's first run downloads ~64 MB of model weights** into `~/.EasyOCR/model/`. This is normal; mention it to the user if they see a 30-second pause on the first upload.
 
+11. **Gemini model is `gemini-2.5-flash-lite` in `.env`.** Free tier quotas (as of mid-2026): `gemini-2.5-flash-lite` = 1,000 RPD (best for free use), `gemini-2.5-flash` = 250 RPD, `gemini-2.5-pro` = 0 free, `gemini-2.0-flash` = removed from free tier, `gemini-1.5-flash` = 404 on v1beta API. If extraction fails with 429, the daily quota is exhausted — it resets at **midnight Pacific Time (PT) = 12:30 PM IST** (in summer/PDT). NOT midnight UTC. The `.env` line must read: `GEMINI_MODEL=gemini-2.5-flash-lite`.
+
 ---
 
 ## How to verify any change

@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     # --- Gemini ---
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-2.0-flash"
 
     # --- TMS ---
     tms_base_url: str = "https://pallia.tmslive.in/"
@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     # --- Queue ---
     worker_concurrency: int = 1
     job_max_retries: int = 2
+
+    # --- EEE-Taxi ---
+    eee_taxi_output_dir: Path = Path("./data/eee_taxi")
+    mtoken_pkcs11_lib: str = r"C:\Windows\System32\CryptoIDA_pkcs11.dll"
 
     # --- Authentication ---
     auth_jwt_secret: str = "changeme"
@@ -77,6 +81,7 @@ class Settings(BaseSettings):
         """Create runtime directories if missing. Called once on startup."""
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.eee_taxi_output_dir.mkdir(parents=True, exist_ok=True)
         # SQLite file directory
         if self.database_url.startswith("sqlite"):
             db_path = self.database_url.split("///", 1)[-1]

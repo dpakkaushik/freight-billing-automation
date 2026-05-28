@@ -49,22 +49,23 @@ from app.schemas import (
     LROut,
     SuggestedSuffixOut,
 )
-from app.services.excel_filler import fill_invoice
 from app.services.extraction import extract_lr_fields
 from app.services.gemini_extractor import GeminiUnavailable, extract_lr_fields_gemini
 from app.services.invoice_numbering import suggest_next_suffix
+from app.services.invoice_pdf import generate_invoice_pdf
 from app.services.llm_extractor import LLMExtractorUnavailable, extract_lr_fields_llm
 from app.services.ocr import run_ocr
 from app.services.ollama_extractor import OllamaUnavailable, extract_lr_fields_ollama
+from app.services.pdf_processor import PDFProcessingError, extract_gcns_from_pdf
 from app.services.auth import get_current_active_user
-from app.services.pdf_converter import LibreOfficeNotFound, xlsx_to_pdf
-from app.services.pdf_signer import SigningError, TokenNotFound, WrongPIN, sign_invoice_pdf
+from app.services.pdf_signer import SigningError, TokenNotFound, WrongPIN, list_token_certs, sign_invoice_pdf
 
 
 router = APIRouter(prefix="/api/billing", tags=["billing"], dependencies=[Depends(get_current_active_user)])
 
 
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"}
+ALLOWED_EXTS = ALLOWED_IMAGE_EXTS | {".pdf"}
 MAX_BYTES = 15 * 1024 * 1024
 
 
@@ -153,19 +154,19 @@ def delete_invoice(invoice_id: str, db: Session = Depends(get_db)) -> None:
 
 # ---------- LR upload + confirm ----------
 
-@router.post("/invoices/{invoice_id}/lrs", response_model=LROut, status_code=status.HTTP_201_CREATED)
+@router.post("/invoices/{invoice_id}/lrs", response_model=list[LROut], status_code=status.HTTP_201_CREATED)
 async def upload_lr(
     invoice_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-) -> LROut:
+) -> list[LROut]:
     inv = _require_invoice(db, invoice_id)
     if inv.status != InvoiceStatus.DRAFT:
         raise HTTPException(409, "Cannot add LRs to a non-draft invoice.")
 
     ext = Path(file.filename or "").suffix.lower()
-    if ext not in ALLOWED_IMAGE_EXTS:
-        raise HTTPException(400, f"Unsupported file type '{ext}'.")
+    if ext not in ALLOWED_EXTS:
+        raise HTTPException(400, f"Unsupported file type '{ext}'. Allowed: images or PDF.")
 
     contents = await file.read()
     if not contents:
@@ -177,6 +178,42 @@ async def upload_lr(
     dest = _invoice_dir(invoice_id) / safe_name
     dest.write_bytes(contents)
 
+    # ── PDF path: extract multiple GCNs, one LR record per GCN ──────────────
+    if ext == ".pdf":
+        try:
+            gcn_fields_list = extract_gcns_from_pdf(dest)
+        except PDFProcessingError as exc:
+            dest.unlink(missing_ok=True)
+            raise HTTPException(422, str(exc))
+
+        created: list[LR] = []
+        for idx, fields in enumerate(gcn_fields_list):
+            do_nos = fields.get("delivery_order_nos") or []
+            fields_with_rows = dict(fields)
+            fields_with_rows["do_rows"] = [
+                {"delivery_order_no": d, "total_amount": ""} for d in do_nos
+            ] or [{"delivery_order_no": "", "total_amount": ""}]
+            fields_with_rows["_extraction_note"] = (
+                f"GCN {idx + 1} extracted from PDF by {settings.extraction_engine}"
+            )
+            fields_with_rows["_pdf_page_index"] = idx  # 0-based position in PDF
+
+            lr = LR(
+                invoice_id=invoice_id,
+                original_filename=f"{file.filename or safe_name} — GCN {idx + 1}",
+                image_path=str(dest),
+                status=LRStatus.AWAITING_CONFIRMATION,
+                extracted_fields=fields_with_rows,
+            )
+            db.add(lr)
+            db.commit()
+            db.refresh(lr)
+            created.append(lr)
+
+        logger.info("PDF upload: created {} LR records for invoice {}", len(created), invoice_id)
+        return [LROut.model_validate(lr) for lr in created]
+
+    # ── Image path: existing single-LR extraction logic ──────────────────────
     lr = LR(
         invoice_id=invoice_id,
         original_filename=file.filename or safe_name,
@@ -189,6 +226,7 @@ async def upload_lr(
 
     try:
         extraction_note = ""
+        ocr_text = ""
         if settings.extraction_engine == "gemini":
             t0 = time.monotonic()
             try:
@@ -198,7 +236,6 @@ async def upload_lr(
                 extraction_note = f"Extracted by Gemini ({settings.gemini_model})"
                 db.add(ExternalApiEvent(api_name="gemini", model=settings.gemini_model, success=True, duration_ms=duration, lr_id=lr.id, invoice_id=invoice_id))
                 db.commit()
-                logger.info("Gemini extraction succeeded for LR {}", lr.id)
             except GeminiUnavailable as exc:
                 duration = int((time.monotonic() - t0) * 1000)
                 extraction_note = f"Gemini failed: {exc} — fell back to EasyOCR"
@@ -215,7 +252,6 @@ async def upload_lr(
                 extraction_note = f"Extracted by OCR + LLM ({settings.ollama_text_model})"
                 db.add(ExternalApiEvent(api_name="ollama_llm", model=settings.ollama_text_model, success=True, duration_ms=duration, lr_id=lr.id, invoice_id=invoice_id))
                 db.commit()
-                logger.info("LLM extraction succeeded for LR {}", lr.id)
             except LLMExtractorUnavailable as exc:
                 duration = int((time.monotonic() - t0) * 1000)
                 extraction_note = f"LLM failed: {exc} — fell back to EasyOCR"
@@ -233,7 +269,6 @@ async def upload_lr(
                 extraction_note = f"Extracted by Ollama ({settings.ollama_model})"
                 db.add(ExternalApiEvent(api_name="ollama", model=settings.ollama_model, success=True, duration_ms=duration, lr_id=lr.id, invoice_id=invoice_id))
                 db.commit()
-                logger.info("Ollama extraction succeeded for LR {}", lr.id)
             except OllamaUnavailable as exc:
                 duration = int((time.monotonic() - t0) * 1000)
                 extraction_note = f"Ollama failed: {exc} — fell back to EasyOCR"
@@ -247,8 +282,6 @@ async def upload_lr(
             fields = extract_lr_fields(ocr_text)
             extraction_note = "Extracted by EasyOCR + regex"
 
-        # Pre-build do_rows from extracted delivery_order_nos so the user
-        # sees one input row per DO# on the confirmation screen.
         do_nos = fields.get("delivery_order_nos") or []
         fields_with_rows = dict(fields)
         fields_with_rows["do_rows"] = [
@@ -268,7 +301,7 @@ async def upload_lr(
         db.refresh(lr)
         raise HTTPException(422, f"Extraction failed: {exc}")
 
-    return LROut.model_validate(lr)
+    return [LROut.model_validate(lr)]
 
 
 @router.patch("/invoices/{invoice_id}/lrs/{lr_id}", response_model=LROut)
@@ -319,36 +352,21 @@ def generate_invoice(invoice_id: str, db: Session = Depends(get_db)) -> InvoiceO
     if not confirmed:
         raise HTTPException(400, "No confirmed LRs to generate from.")
 
-    out_dir = _invoice_dir(inv.id)
-    xlsx_path = out_dir / f"invoice_{inv.suffix}.xlsx"
+    out_dir  = _invoice_dir(inv.id)
+    pdf_path = out_dir / f"invoice_{inv.suffix}.pdf"
     try:
-        fill_invoice(
+        generate_invoice_pdf(
             suffix=inv.suffix,
             invoice_date=inv.invoice_date,
             lrs=[lr.confirmed_fields for lr in confirmed],
-            output_path=xlsx_path,
+            output_path=pdf_path,
         )
     except Exception as exc:
-        logger.exception("Excel filler failed for invoice {}", inv.id)
+        logger.exception("PDF generation failed for invoice {}", inv.id)
         inv.status = InvoiceStatus.FAILED
-        inv.error_message = f"Excel generation failed: {exc}"
+        inv.error_message = f"PDF generation failed: {exc}"
         db.commit()
-        raise HTTPException(500, f"Excel generation failed: {exc}")
-
-    inv.excel_path = str(xlsx_path)
-
-    try:
-        pdf_path = xlsx_to_pdf(xlsx_path, out_dir)
-    except LibreOfficeNotFound as exc:
-        inv.error_message = str(exc)
-        db.commit()
-        # Don't mark FAILED — Excel is still good. User can install LO and retry.
-        raise HTTPException(503, str(exc))
-    except Exception as exc:
-        logger.exception("PDF conversion failed for invoice {}", inv.id)
-        inv.error_message = f"PDF conversion failed: {exc}"
-        db.commit()
-        raise HTTPException(500, f"PDF conversion failed: {exc}")
+        raise HTTPException(500, f"PDF generation failed: {exc}")
 
     inv.pdf_path = str(pdf_path)
     inv.status = InvoiceStatus.GENERATED
@@ -439,6 +457,150 @@ def get_lr_image(invoice_id: str, lr_id: str, db: Session = Depends(get_db)):
     media = {"jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
              ".webp": "image/webp", ".bmp": "image/bmp", ".tiff": "image/tiff"}
     return FileResponse(path, media_type=media.get(suffix, "image/jpeg"))
+
+
+# ---------- PDF manual page selection ----------
+
+class PdfUploadOut(BaseModel):
+    handle: str
+    total_pages: int
+
+
+class ExtractPageIn(BaseModel):
+    handle: str
+    page_num: int  # 0-based
+
+
+@router.post("/invoices/{invoice_id}/upload-pdf", response_model=PdfUploadOut)
+async def upload_pdf_for_selection(
+    invoice_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> PdfUploadOut:
+    """Save a PDF and return its page count without extracting anything.
+    Call extract-page to pull individual GCN pages.
+    """
+    inv = _require_invoice(db, invoice_id)
+    if inv.status != InvoiceStatus.DRAFT:
+        raise HTTPException(409, "Cannot add LRs to a non-draft invoice.")
+
+    ext = Path(file.filename or "").suffix.lower()
+    if ext != ".pdf":
+        raise HTTPException(400, "This endpoint only accepts PDF files.")
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(400, "Empty file.")
+    if len(contents) > MAX_BYTES:
+        raise HTTPException(413, f"File too large (max {MAX_BYTES // (1024 * 1024)} MB).")
+
+    safe_name = f"{uuid.uuid4().hex}.pdf"
+    dest = _invoice_dir(invoice_id) / safe_name
+    dest.write_bytes(contents)
+
+    try:
+        from pypdf import PdfReader  # already in requirements
+        total_pages = len(PdfReader(str(dest)).pages)
+    except Exception:
+        total_pages = 1
+
+    return PdfUploadOut(handle=safe_name, total_pages=total_pages)
+
+
+@router.post("/invoices/{invoice_id}/extract-page", response_model=LROut, status_code=status.HTTP_201_CREATED)
+def extract_page(
+    invoice_id: str,
+    body: ExtractPageIn,
+    db: Session = Depends(get_db),
+) -> LROut:
+    """Extract a single page from a previously uploaded PDF and create one LR record."""
+    inv = _require_invoice(db, invoice_id)
+    if inv.status != InvoiceStatus.DRAFT:
+        raise HTTPException(409, "Invoice is not editable.")
+
+    # Reject any path traversal in handle
+    if "/" in body.handle or "\\" in body.handle or ".." in body.handle:
+        raise HTTPException(400, "Invalid handle.")
+    pdf_path = _invoice_dir(invoice_id) / body.handle
+    if not pdf_path.exists() or pdf_path.suffix.lower() != ".pdf":
+        raise HTTPException(404, "PDF not found. Upload the PDF first.")
+
+    fields: dict = {}
+    extraction_note = ""
+    if settings.extraction_engine == "gemini":
+        t0 = time.monotonic()
+        try:
+            fields = extract_lr_fields_gemini(pdf_path, page_num=body.page_num)
+            duration = int((time.monotonic() - t0) * 1000)
+            extraction_note = f"Extracted by Gemini ({settings.gemini_model}) — page {body.page_num + 1}"
+            db.add(ExternalApiEvent(
+                api_name="gemini", model=settings.gemini_model, success=True,
+                duration_ms=duration, invoice_id=invoice_id,
+            ))
+            db.commit()
+        except GeminiUnavailable as exc:
+            duration = int((time.monotonic() - t0) * 1000)
+            db.add(ExternalApiEvent(
+                api_name="gemini", model=settings.gemini_model, success=False,
+                error_message=str(exc), duration_ms=duration, invoice_id=invoice_id,
+            ))
+            db.commit()
+            logger.warning("Gemini failed on page {} ({}), falling back to text", body.page_num, exc)
+    else:
+        extraction_note = f"Text regex — page {body.page_num + 1}"
+
+    if not fields:
+        # Text regex fallback
+        try:
+            from pypdf import PdfReader
+            text = PdfReader(str(pdf_path)).pages[body.page_num].extract_text() or ""
+            fields = extract_lr_fields(text)
+            extraction_note += " (text regex fallback)"
+        except Exception as exc:
+            raise HTTPException(422, f"Extraction failed: {exc}") from exc
+
+    do_nos = fields.get("delivery_order_nos") or []
+    fields_with_rows = dict(fields)
+    fields_with_rows["do_rows"] = [
+        {"delivery_order_no": d, "total_amount": ""} for d in do_nos
+    ] or [{"delivery_order_no": "", "total_amount": ""}]
+    fields_with_rows["_extraction_note"] = extraction_note
+    fields_with_rows["_pdf_page_index"] = body.page_num
+
+    lr = LR(
+        invoice_id=invoice_id,
+        original_filename=f"{body.handle} — page {body.page_num + 1}",
+        image_path=str(pdf_path),
+        status=LRStatus.AWAITING_CONFIRMATION,
+        extracted_fields=fields_with_rows,
+    )
+    db.add(lr)
+    db.commit()
+    db.refresh(lr)
+    return LROut.model_validate(lr)
+
+
+# ---------- DSC token diagnostics ----------
+
+class TokenCertsIn(BaseModel):
+    pin: str
+
+
+@router.post("/token-certs")
+def token_certs(body: TokenCertsIn):
+    """List all certificate labels on the USB DSC token.
+
+    Use this after a DSC renewal to find the new cert label and update CERT_LABEL in pdf_signer.py.
+    """
+    try:
+        labels = list_token_certs(body.pin)
+    except TokenNotFound as exc:
+        raise HTTPException(503, str(exc))
+    except WrongPIN as exc:
+        raise HTTPException(401, str(exc))
+    except SigningError as exc:
+        raise HTTPException(500, str(exc))
+    return {"cert_labels": labels}
 
 
 # ---------- TMS portal placeholder ----------
