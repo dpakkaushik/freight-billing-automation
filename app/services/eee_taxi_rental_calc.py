@@ -339,7 +339,7 @@ def generate_full_calc_csv(rows: list[EeeTaxiRow], original_headers: list[str]) 
                 extra_time_hrs,
                 extra_time_charge,
                 night_charge,
-                str(calc_fare),   # ← edit this column to override fare
+                str(calc_fare + toll),   # trip fare + Toll/MCD; GST and Calc Total derive from this
                 gst_type,
                 str(cgst),
                 str(sgst),
