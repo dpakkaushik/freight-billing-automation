@@ -426,6 +426,38 @@ def download_signed_pdf(invoice_id: str, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/invoices/{invoice_id}/upload-signed-pdf", response_model=InvoiceOut)
+async def upload_signed_pdf(
+    invoice_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> InvoiceOut:
+    """Receive a signed PDF from the local signing helper and store it.
+
+    Called by the browser after the local PalliaSignHelper.exe has signed
+    the PDF — the browser downloads the unsigned PDF, sends it to the helper,
+    and uploads the signed result here.
+    """
+    inv = _require_invoice(db, invoice_id)
+    if not inv.pdf_path:
+        raise HTTPException(400, "No generated PDF found for this invoice.")
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(400, "Empty file received.")
+    if len(contents) > MAX_BYTES:
+        raise HTTPException(413, f"File too large (max {MAX_BYTES // (1024*1024)} MB).")
+
+    signed_path = _invoice_dir(invoice_id) / f"invoice_{inv.suffix}_signed.pdf"
+    signed_path.write_bytes(contents)
+
+    inv.signed_pdf_path = str(signed_path)
+    db.commit()
+    db.refresh(inv)
+    logger.info("Signed PDF uploaded for invoice {} -> {}", inv.id, signed_path)
+    return InvoiceOut.model_validate(inv)
+
+
 # ---------- LR image ----------
 
 @router.get("/invoices/{invoice_id}/lrs/{lr_id}/image")

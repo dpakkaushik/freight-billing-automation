@@ -1175,7 +1175,7 @@
 <div id="pinModal" class="modal-backdrop hidden">
   <div class="modal" onclick="event.stopPropagation()">
     <h3>🔏 Sign PDF with DSC Token</h3>
-    <p class="modal-sub">Enter your USB token PIN to place a digital signature on the invoice PDF. Make sure the DSC pendrive is connected.</p>
+    <p class="modal-sub">Enter your USB token PIN. Make sure the DSC pendrive is connected <b>and PalliaSignHelper.exe is running</b> on this PC.</p>
     <label class="field">Token PIN</label>
     <input type="password" id="pinInput" placeholder="Enter PIN" autocomplete="off" onkeydown="if(event.key==='Enter')doSignPdf()" />
     <div id="pinStatus" class="meta" style="margin-top:8px;min-height:18px;"></div>
@@ -2525,6 +2525,9 @@ async function generateInvoice() {
 }
 
 // ── PDF Signing ───────────────────────────────────────────────────────────────
+
+const SIGN_HELPER_URL = "http://127.0.0.1:7777";
+
 function openPinModal() {
   $("#pinInput").value = ""; $("#pinStatus").textContent = ""; $("#btnPinSign").disabled = false;
   $("#pinModal").classList.remove("hidden");
@@ -2533,26 +2536,74 @@ function openPinModal() {
 function closePinModal() { $("#pinModal").classList.add("hidden"); }
 $("#pinModal").addEventListener("click", closePinModal);
 
+function _arrayBufferToBase64(buffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + 8192, bytes.length)));
+  }
+  return btoa(binary);
+}
+
 async function doSignPdf() {
   const pin = $("#pinInput").value;
   if (!pin) { $("#pinStatus").innerHTML = `<span class="text-err">Please enter your PIN.</span>`; return; }
   $("#btnPinSign").disabled = true;
-  $("#pinStatus").innerHTML = `<span class="spinner"></span> Signing... keep USB token connected`;
+
+  // 1. Check local signing helper is running
+  $("#pinStatus").innerHTML = `<span class="spinner"></span> Checking signing helper...`;
   try {
-    currentInvoice = await api(`/api/billing/invoices/${currentInvoice.id}/sign-pdf`, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ pin }),
+    const hRes = await fetch(`${SIGN_HELPER_URL}/health`, { signal: AbortSignal.timeout(2000) });
+    if (!hRes.ok) throw new Error("not ok");
+  } catch(_) {
+    $("#btnPinSign").disabled = false;
+    $("#pinStatus").innerHTML =
+      `<span class="text-err">Signing helper is not running.<br>
+       Please start <b>PalliaSignHelper.exe</b> on this PC and try again.</span>`;
+    return;
+  }
+
+  try {
+    // 2. Download unsigned PDF from server
+    $("#pinStatus").innerHTML = `<span class="spinner"></span> Downloading PDF...`;
+    const pdfRes = await fetch(`/api/billing/invoices/${currentInvoice.id}/pdf`, {
+      headers: { Authorization: `Bearer ${authToken}` },
     });
+    if (!pdfRes.ok) throw new Error("Failed to download PDF from server.");
+    const pdfBuffer = await pdfRes.arrayBuffer();
+    const pdfB64 = _arrayBufferToBase64(pdfBuffer);
+
+    // 3. Send to local helper for signing
+    $("#pinStatus").innerHTML = `<span class="spinner"></span> Signing... keep USB token connected`;
+    const signRes = await fetch(`${SIGN_HELPER_URL}/sign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pdf_b64: pdfB64, pin }),
+    });
+    if (signRes.status === 401) throw new Error("Incorrect PIN. Please try again.");
+    if (signRes.status === 503) throw new Error("USB token not found. Make sure the DSC pendrive is connected.");
+    if (!signRes.ok) {
+      const err = await signRes.json().catch(() => ({}));
+      throw new Error(err.detail || "Signing failed.");
+    }
+    const { signed_pdf_b64 } = await signRes.json();
+
+    // 4. Upload signed PDF back to server
+    $("#pinStatus").innerHTML = `<span class="spinner"></span> Uploading signed PDF...`;
+    const signedBytes = Uint8Array.from(atob(signed_pdf_b64), c => c.charCodeAt(0));
+    const fd = new FormData();
+    fd.append("file", new Blob([signedBytes], { type: "application/pdf" }), "signed.pdf");
+    currentInvoice = await api(`/api/billing/invoices/${currentInvoice.id}/upload-signed-pdf`, {
+      method: "POST",
+      body: fd,
+    });
+
     closePinModal();
     $("#generateStatus").innerHTML = `<span class="text-ok">✓ PDF signed — <a href="#" onclick="downloadSignedPdf('${currentInvoice.id}');return false;">Download Signed PDF ↗</a></span>`;
     updateGenerateButtons();
   } catch(e) {
     $("#btnPinSign").disabled = false;
-    let msg = e.message;
-    if (msg.includes("token") || msg.includes("pendrive")) msg = "USB token not found. Make sure the DSC pendrive is connected.";
-    else if (msg.includes("PIN") || msg.includes("Incorrect")) msg = "Incorrect PIN. Please try again.";
-    $("#pinStatus").innerHTML = `<span class="text-err">${msg}</span>`;
+    $("#pinStatus").innerHTML = `<span class="text-err">${e.message}</span>`;
   }
 }
 
