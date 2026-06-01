@@ -55,7 +55,6 @@ from app.services.invoice_numbering import suggest_next_suffix
 from app.services.invoice_pdf import generate_invoice_pdf
 from app.services.llm_extractor import LLMExtractorUnavailable, extract_lr_fields_llm
 from app.services.ocr import run_ocr
-from app.services.ollama_extractor import OllamaUnavailable, extract_lr_fields_ollama
 from app.services.pdf_processor import PDFProcessingError, extract_gcns_from_pdf
 from app.services.auth import get_current_active_user
 from app.services.pdf_signer import SigningError, TokenNotFound, WrongPIN, list_token_certs, sign_invoice_pdf
@@ -258,23 +257,6 @@ async def upload_lr(
                 db.add(ExternalApiEvent(api_name="ollama_llm", model=settings.ollama_text_model, success=False, error_message=str(exc), duration_ms=duration, lr_id=lr.id, invoice_id=invoice_id))
                 db.commit()
                 logger.warning("LLM unavailable ({}), falling back to regex", exc)
-                ocr_text = run_ocr(dest)
-                fields = extract_lr_fields(ocr_text)
-        elif settings.extraction_engine == "ollama":
-            t0 = time.monotonic()
-            try:
-                fields = extract_lr_fields_ollama(dest)
-                duration = int((time.monotonic() - t0) * 1000)
-                ocr_text = json.dumps(fields, indent=2, ensure_ascii=False)
-                extraction_note = f"Extracted by Ollama ({settings.ollama_model})"
-                db.add(ExternalApiEvent(api_name="ollama", model=settings.ollama_model, success=True, duration_ms=duration, lr_id=lr.id, invoice_id=invoice_id))
-                db.commit()
-            except OllamaUnavailable as exc:
-                duration = int((time.monotonic() - t0) * 1000)
-                extraction_note = f"Ollama failed: {exc} — fell back to EasyOCR"
-                db.add(ExternalApiEvent(api_name="ollama", model=settings.ollama_model, success=False, error_message=str(exc), duration_ms=duration, lr_id=lr.id, invoice_id=invoice_id))
-                db.commit()
-                logger.warning("Ollama unavailable ({}), falling back to regex", exc)
                 ocr_text = run_ocr(dest)
                 fields = extract_lr_fields(ocr_text)
         else:

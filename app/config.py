@@ -37,7 +37,6 @@ class Settings(BaseSettings):
     # "gemini" | "ollama" | "llm" | "easyocr"
     extraction_engine: str = "gemini"
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llava-phi3"
     ollama_text_model: str = "llama3.2:3b"
 
     # --- Gemini ---
