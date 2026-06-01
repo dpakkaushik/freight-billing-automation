@@ -2,17 +2,19 @@
 echo ============================================
 echo  Pallia Trans Signing Helper — Build Script
 echo ============================================
-echo.
 
-echo Installing dependencies...
 pip install -r requirements.txt
 pip install pyinstaller
 
-echo.
-echo Building PalliaSignHelper.exe ...
 pyinstaller ^
   --onefile ^
+  --noconsole ^
   --name PalliaSignHelper ^
+  --hidden-import pystray._win32 ^
+  --hidden-import win32api ^
+  --hidden-import win32con ^
+  --hidden-import win32gui ^
+  --hidden-import winreg ^
   --hidden-import pyhanko.sign.pkcs11 ^
   --hidden-import pyhanko.sign.signers ^
   --hidden-import pyhanko.sign.signers.pdf_signer ^
@@ -21,17 +23,15 @@ pyinstaller ^
   --hidden-import pyhanko.stamp ^
   --hidden-import pkcs11 ^
   --hidden-import asn1crypto ^
-  --hidden-import asn1crypto.x509 ^
-  --hidden-import loguru ^
   --collect-all pyhanko ^
+  --collect-all pystray ^
   main.py
 
-echo.
 if exist dist\PalliaSignHelper.exe (
+  echo.
   echo SUCCESS — dist\PalliaSignHelper.exe is ready.
-  echo Copy it to any Windows PC that has the DSC token.
 ) else (
+  echo.
   echo FAILED — check errors above.
 )
-echo.
 pause

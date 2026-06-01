@@ -1,15 +1,15 @@
 """Pallia Trans Local Signing Helper.
 
-Runs on http://127.0.0.1:7777 and signs PDFs using the USB DSC token.
-The Pallia Trans web app calls this from the user's browser via fetch.
+Runs silently as a Windows system tray app on http://127.0.0.1:7777.
+Auto-registers in Windows startup on first launch (no admin rights needed).
 
-Start: python main.py
-Build as .exe: run build.bat
+Right-click the tray icon to Stop.
 """
 from __future__ import annotations
 
 import base64
 import sys
+import threading
 
 import uvicorn
 from fastapi import FastAPI
@@ -23,9 +23,6 @@ PORT = 7777
 
 app = FastAPI(title="Pallia Trans Signing Helper", docs_url=None, redoc_url=None)
 
-# Allow any origin — the helper only exposes signing, which still requires
-# the user to enter their PIN.  Restricted to localhost so the port is not
-# reachable from the internet.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,15 +31,15 @@ app.add_middleware(
 )
 
 
-# ── Models ────────────────────────────────────────────────────────────────────
+# ── API models ────────────────────────────────────────────────────────────────
 
 class SignRequest(BaseModel):
-    pdf_b64: str   # base64-encoded unsigned PDF
-    pin: str       # USB token PIN
+    pdf_b64: str
+    pin: str
 
 
 class SignResponse(BaseModel):
-    signed_pdf_b64: str   # base64-encoded signed PDF
+    signed_pdf_b64: str
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -71,13 +68,85 @@ def sign(body: SignRequest):
     return SignResponse(signed_pdf_b64=base64.b64encode(signed_bytes).decode())
 
 
+# ── Windows startup registration ──────────────────────────────────────────────
+
+def _register_startup() -> None:
+    """Add this .exe to HKCU startup so it launches on every Windows login.
+
+    Uses HKCU (current user) — no administrator rights required.
+    Safe to call on every launch; just overwrites the same key.
+    """
+    try:
+        import winreg
+        exe_path = sys.executable          # correct path when frozen by PyInstaller
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            0, winreg.KEY_SET_VALUE,
+        )
+        winreg.SetValueEx(key, "PalliaSignHelper", 0, winreg.REG_SZ, f'"{exe_path}"')
+        winreg.CloseKey(key)
+    except Exception:
+        pass    # non-fatal — user can start manually if registry fails
+
+
+# ── Tray icon ─────────────────────────────────────────────────────────────────
+
+def _make_icon_image():
+    """Purple circle with white 'P' — matches the app's accent colour."""
+    from PIL import Image, ImageDraw, ImageFont
+    size = 64
+    img  = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    draw.ellipse([2, 2, size - 2, size - 2], fill=(124, 106, 242, 255))
+
+    try:
+        font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 36)
+    except Exception:
+        font = ImageFont.load_default()
+
+    try:
+        bb = draw.textbbox((0, 0), "P", font=font)
+        tw, th = bb[2] - bb[0], bb[3] - bb[1]
+    except AttributeError:
+        tw, th = 20, 28
+
+    draw.text(((size - tw) // 2, (size - th) // 2 - 2), "P",
+              font=font, fill=(255, 255, 255, 255))
+    return img
+
+
+def _run_server() -> None:
+    uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning")
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("=" * 55)
-    print("  Pallia Trans Signing Helper")
-    print(f"  Running on http://127.0.0.1:{PORT}")
-    print("  Keep this window open while signing invoices.")
-    print("  Press Ctrl+C to stop.")
-    print("=" * 55)
-    uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning")
+    import pystray
+
+    # Register in Windows startup (idempotent)
+    _register_startup()
+
+    # Start HTTP server in a background daemon thread
+    threading.Thread(target=_run_server, daemon=True).start()
+
+    # System tray icon
+    def on_quit(icon, _item):
+        icon.stop()
+        sys.exit(0)
+
+    menu = pystray.Menu(
+        pystray.MenuItem("Pallia Trans Helper  ✓ Running", None, enabled=False),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Stop", on_quit),
+    )
+
+    icon = pystray.Icon(
+        "PalliaTransHelper",
+        _make_icon_image(),
+        "Pallia Trans Signing Helper",
+        menu,
+    )
+    icon.run()   # blocks; uvicorn thread keeps serving in background
