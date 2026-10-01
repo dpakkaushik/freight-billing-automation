@@ -30,3 +30,6 @@ test-results/
 .vscode/
 .idea/
 .DS_Store
+
+# Runtime logs
+server.log

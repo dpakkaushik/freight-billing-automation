@@ -24,6 +24,7 @@ from app.api import billing as billing_api
 from app.api import auth as auth_api
 from app.api import dashboard as dashboard_api
 from app.api import eee_taxi as eee_taxi_api
+from app.api import eee_taxi_rates as eee_taxi_rates_api
 from app.config import settings
 from app.database import SessionLocal, init_db
 from app.models import ApiUsageEvent, User
@@ -51,6 +52,7 @@ app.include_router(auth_api.router)
 app.include_router(billing_api.router)
 app.include_router(dashboard_api.router)
 app.include_router(eee_taxi_api.router)
+app.include_router(eee_taxi_rates_api.router)
 
 
 @app.middleware("http")
@@ -101,7 +103,8 @@ if STATIC_DIR.exists():
 @app.get("/")
 def index():
     """Serve the single-page UI."""
-    return FileResponse(STATIC_DIR / "index.html")
+    # no-cache: the browser re-checks on every load, so UI updates appear without a hard refresh
+    return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/healthz")

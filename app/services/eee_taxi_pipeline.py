@@ -21,6 +21,7 @@ from app.models import EeeTaxiBatch, EeeTaxiBatchStatus, EeeTaxiInvoice, EeeTaxi
 from app.services.eee_taxi_clients import UnknownClientError, is_local, lookup_client
 from app.services.eee_taxi_csv import EeeTaxiRow, financial_year, format_invoice_no
 from app.services.eee_taxi_pdf import InvoiceContext, compute_tax, generate_eee_taxi_invoice_pdf
+from app.services.eee_taxi_rates import RateCard
 from app.services.eee_taxi_rental_calc import calculate_rental_fare
 from app.services.eee_taxi_signer import (
     SigningError,
@@ -39,9 +40,14 @@ def run_batch(
     pin: str,
     output_dir: Path,
     db: Session,
+    rates: RateCard,
     sign_mode: str = "usb",
 ) -> None:
-    """Process all rows for a batch. Runs inside a BackgroundTask."""
+    """Process all rows for a batch. Runs inside a BackgroundTask.
+
+    ``rates`` is the rate-card snapshot taken when the batch started, so the
+    invoice breakdown matches the fares calculated for this batch.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     batch = db.get(EeeTaxiBatch, batch_id)
     if batch is None:
@@ -91,17 +97,19 @@ def run_batch(
             # Build rental breakdown for invoice particulars
             rental_kwargs: dict = {}
             if row.booking_type == "rental":
-                fr = calculate_rental_fare(row)
-                base_h, base_k = {920: (4, 40), 1840: (8, 80)}.get(fr.effective_package, (8, 80))
+                fr = calculate_rental_fare(row, rates)
                 rental_kwargs = dict(
                     is_rental=True,
-                    rental_base_label=f"{base_h}/{base_k}",
+                    rental_base_label=f"{fr.base_hours}/{fr.base_kms}",
                     rental_base_fare=Decimal(str(fr.effective_package)),
                     extra_hrs=fr.extra_time_hours,
                     extra_hrs_charge=fr.extra_time_charge,
                     extra_km_count=fr.extra_km,
                     extra_km_charge_val=fr.extra_km_charge,
                     night_charge_val=fr.night_charge,
+                    extra_hr_rate=rates.extra_hour_rate,
+                    extra_km_rate=rates.extra_km_rate,
+                    night_window_label=rates.night_label,
                 )
 
             ctx = InvoiceContext(

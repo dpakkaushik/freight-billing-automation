@@ -75,6 +75,14 @@ class InvoiceContext:
     extra_km_count: int = 0
     extra_km_charge_val: Decimal = Decimal("0")
     night_charge_val: Decimal = Decimal("0")
+    extra_hr_rate: Decimal = Decimal("0")
+    extra_km_rate: Decimal = Decimal("0")
+    night_window_label: str = ""       # e.g. "23:00-05:00"
+
+
+def _rate(value: Decimal) -> str:
+    """Rate as printed on the invoice: 200 -> "200", 15.5 -> "15.50"."""
+    return f"{value:.0f}" if value == value.to_integral_value() else f"{value:.2f}"
 
 
 def compute_tax(tax_base: Decimal, is_local: bool) -> tuple[Decimal, Decimal, Decimal]:
@@ -236,13 +244,13 @@ def generate_eee_taxi_invoice_pdf(
     if ctx.is_rental:
         ekc = "0" if ctx.extra_km_charge_val == 0 else f"{ctx.extra_km_charge_val:.2f}"
         night_line = (
-            f"<br/>Night Charge (23:00-05:00= {ctx.night_charge_val:.2f})"
+            f"<br/>Night Charge ({ctx.night_window_label}= {ctx.night_charge_val:.2f})"
             if ctx.night_charge_val > 0 else ""
         )
         breakdown = (
             f"<br/>Rental ({ctx.rental_base_label}= {ctx.rental_base_fare:.2f})<br/>"
-            f"Extra Hrs ({ctx.extra_hrs}*180= {ctx.extra_hrs_charge:.2f})<br/>"
-            f"Extra Kms ({ctx.extra_km_count}*15.50= {ekc})"
+            f"Extra Hrs ({ctx.extra_hrs}*{_rate(ctx.extra_hr_rate)}= {ctx.extra_hrs_charge:.2f})<br/>"
+            f"Extra Kms ({ctx.extra_km_count}*{_rate(ctx.extra_km_rate)}= {ekc})"
             f"{night_line}<br/>"
             "G TO G KM (MAX=20 KM)) &amp; HRS (1 HRS) INCLUDED"
         )

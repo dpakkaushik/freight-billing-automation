@@ -15,7 +15,9 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import EeeTaxiBatch, EeeTaxiBatchStatus, EeeTaxiInvoice, EeeTaxiInvoiceStatus
 from app.services.eee_taxi_csv import parse_eee_taxi_csv
+from app.services.eee_taxi_fare_check import STATUS_OK, apply_card_fares, check_p2p_fares
 from app.services.eee_taxi_pipeline import build_zip, run_batch
+from app.services.eee_taxi_rates import get_rate_card
 from app.services.eee_taxi_rental_calc import (
     apply_fare_overrides,
     generate_full_calc_csv,
@@ -37,8 +39,10 @@ async def calculate_fares(csv_file: UploadFile):
     that file when starting the batch to override any calculated fare.
     """
     csv_bytes = await csv_file.read()
+    with SessionLocal() as db:
+        rates = get_rate_card(db)
     try:
-        original_headers, rows = parse_eee_taxi_csv(csv_bytes)
+        original_headers, rows = parse_eee_taxi_csv(csv_bytes, rates)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -46,7 +50,7 @@ async def calculate_fares(csv_file: UploadFile):
         raise HTTPException(status_code=400, detail="No valid data rows found in CSV.")
 
     try:
-        calc_bytes = generate_full_calc_csv(rows, original_headers)
+        calc_bytes = generate_full_calc_csv(rows, original_headers, rates)
     except Exception as exc:
         logger.exception("generate_full_calc_csv failed")
         raise HTTPException(status_code=500, detail=f"Fare calculation failed: {exc}") from exc
@@ -68,6 +72,33 @@ async def calculate_fares(csv_file: UploadFile):
     )
 
 
+# ── P2P fare check ───────────────────────────────────────────────────────────
+
+@router.post("/fare-check")
+async def fare_check(csv_file: UploadFile):
+    """List P2P trips whose CSV fare differs from the rate card or match no route."""
+    csv_bytes = await csv_file.read()
+    with SessionLocal() as db:
+        rates = get_rate_card(db)
+    try:
+        _, rows = parse_eee_taxi_csv(csv_bytes, rates)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    checks = check_p2p_fares(rows, rates)
+    return {
+        "p2p_count": len(checks),
+        "ok_count": sum(1 for c in checks if c.status == STATUS_OK),
+        "issues": [c.to_dict() for c in checks if c.status != STATUS_OK],
+    }
+
+
+def _parse_row_list(value: str) -> set[int]:
+    try:
+        return {int(v) for v in value.split(",") if v.strip()}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="use_card_fare_rows must be a comma-separated list of row numbers.") from exc
+
+
 # ── Start batch ───────────────────────────────────────────────────────────────
 
 @router.post("/batch")
@@ -78,12 +109,15 @@ async def start_batch(
     pin: str = Form(""),
     sign_mode: str = Form("usb"),
     calc_csv: Optional[UploadFile] = File(None),
+    use_card_fare_rows: str = Form(""),
 ):
     """Upload trip CSV (and optional modified calculated CSV) and start batch generation."""
     csv_bytes = await csv_file.read()
+    with SessionLocal() as db:
+        rates = get_rate_card(db)   # one snapshot for the whole batch
 
     try:
-        _, rows = parse_eee_taxi_csv(csv_bytes)
+        _, rows = parse_eee_taxi_csv(csv_bytes, rates)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"CSV parse error: {exc}") from exc
 
@@ -109,7 +143,13 @@ async def start_batch(
             overrides = parse_calc_csv(calc_bytes)
             logger.info("Fare overrides from calculated CSV: {} rows", len(overrides))
 
-    rows = apply_fare_overrides(rows, overrides)
+    # Rows the user chose to bill at the rate-card route fare; explicit
+    # Calc_Trip_Fare edits from a re-uploaded CSV still win over this.
+    card_rows = _parse_row_list(use_card_fare_rows)
+    if card_rows:
+        rows = apply_card_fares(rows, card_rows, rates)
+        logger.info("Rate-card fare applied to {} P2P rows", len(card_rows))
+    rows = apply_fare_overrides(rows, overrides, rates)
 
     p2p_count    = sum(1 for r in rows if r.booking_type == "p2p")
     rental_count = sum(1 for r in rows if r.booking_type == "rental")
@@ -153,6 +193,7 @@ async def start_batch(
                 pin=pin,
                 output_dir=output_dir,
                 db=db_thread,
+                rates=rates,
                 sign_mode=sign_mode,
             )
 

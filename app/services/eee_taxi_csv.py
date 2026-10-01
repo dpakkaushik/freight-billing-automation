@@ -14,10 +14,12 @@ Optional headers (used when present, silently ignored when absent):
     Entity Gst    <- GSTIN; if present takes precedence over name-based lookup
     Kms Helper    <- "A+B" billing/dead-run km split; first part used for rental
     Drop Zone     <- city/zone name; used to pick correct state GSTIN
+                     and, with Pickup Zone, to check P2P fares against the rate card
+    Pickup Zone   <- city/zone name of the pickup (P2P fare check)
 
-Rental-classification:
-    Package = 920  -> 4:40 rental (base Rs 920)
-    Package = 1840 -> 8:80 rental (base Rs 1840)
+Rental-classification (package fares come from the editable rate card):
+    Package = small package fare (default 950)  -> 4:40 rental
+    Package = large package fare (default 1900) -> 8:80 rental
     Any other value -> P2P fixed-fare trip
 
 If any required header is missing the parser raises ValueError listing the
@@ -33,6 +35,8 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from loguru import logger
+
+from app.services.eee_taxi_rates import RateCard
 
 # ── Required column names (exact, case-sensitive after normalisation) ─────────
 REQUIRED_HEADERS: frozenset[str] = frozenset({
@@ -51,9 +55,6 @@ REQUIRED_HEADERS: frozenset[str] = frozenset({
     "toll/mcd",
     "entity",   # billing entity name; GSTIN resolved from internal master
 })
-
-RENTAL_PACKAGES: frozenset[int] = frozenset({920, 1840})
-
 
 @dataclass(frozen=True)
 class EeeTaxiRow:
@@ -81,6 +82,8 @@ class EeeTaxiRow:
     csv_extra_time: Decimal # from CSV for cross-check
     csv_night_charge: Decimal  # from CSV for cross-check
     raw_values: tuple = ()  # all original CSV cell values in column order
+    pickup_zone: str = ""   # "Pickup Zone" column; matched to rate-card route fares
+    drop_zone: str = ""     # "Drop Zone" column
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -112,7 +115,9 @@ def _dec(s: str) -> Decimal:
 
 # ── Main parser ───────────────────────────────────────────────────────────────
 
-def parse_eee_taxi_csv(file_bytes: bytes) -> tuple[list[str], list[EeeTaxiRow]]:
+def parse_eee_taxi_csv(
+    file_bytes: bytes, rates: RateCard,
+) -> tuple[list[str], list[EeeTaxiRow]]:
     """Parse CSV bytes → (original_headers, rows).
 
     original_headers is the raw header row as-is (for round-trip output).
@@ -192,7 +197,7 @@ def parse_eee_taxi_csv(file_bytes: bytes) -> tuple[list[str], list[EeeTaxiRow]]:
             package = int(float(pkg_str)) if pkg_str else 0
         except (ValueError, InvalidOperation):
             package = 0
-        booking_type = "rental" if package in RENTAL_PACKAGES else "p2p"
+        booking_type = "rental" if package in rates.rental_packages else "p2p"
 
         # ── Kms: total odometer vs billing kms (first part of Kms Helper) ─────
         total_kms_val = _dec(col("total kms"))
@@ -236,6 +241,8 @@ def parse_eee_taxi_csv(file_bytes: bytes) -> tuple[list[str], list[EeeTaxiRow]]:
             csv_extra_time=_dec(col("time extra/time charges")),
             csv_night_charge=_dec(col("night charge 11pm to 5am")),
             raw_values=tuple(raw),
+            pickup_zone=col("pickup zone"),
+            drop_zone=drop_zone,
         ))
         idx += 1
 

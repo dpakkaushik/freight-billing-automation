@@ -54,6 +54,11 @@ def _migrate_existing_db() -> None:
             if "full_name" not in existing:
                 conn.execute(text("ALTER TABLE users ADD COLUMN full_name VARCHAR(128)"))
             conn.commit()
+        if "eee_taxi_rate_card" in inspector.get_table_names():
+            existing = {c["name"] for c in inspector.get_columns("eee_taxi_rate_card")}
+            if "edit_password_hash" not in existing:
+                conn.execute(text("ALTER TABLE eee_taxi_rate_card ADD COLUMN edit_password_hash VARCHAR(255)"))
+            conn.commit()
         # external_api_events is created by create_all; no ALTER TABLE needed
 
 

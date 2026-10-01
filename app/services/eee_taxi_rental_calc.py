@@ -1,22 +1,23 @@
 """Rental fare calculation engine for EEE-Taxi batch invoicing.
 
-Packages:
-    920  = 4:40  (4 hrs, 40 kms base)
-    1840 = 8:80  (8 hrs, 80 kms base)
+All rates come from a ``RateCard`` (see ``app/services/eee_taxi_rates.py``),
+which admins edit on the EEE-Taxi -> Rate Card page. Rules, with the
+defaults in brackets:
 
-Auto-upgrade 4:40 → 8:80:
-    duration >= 6 h 31 m  OR  total_kms (floor) >= 61
+Packages: small [950 = 4 hrs / 40 kms], large [1900 = 8 hrs / 80 kms].
+    The CSV ``Package`` value must equal one of the two package fares.
 
-Extra time charge:
-    Rs 180 per extra hour above base hours.
-    Rounding: remaining minutes >= 31 → count as one full extra hour.
+Auto-upgrade small -> large:
+    duration >= upgrade_minutes [6 h 31 m]  OR  total_kms (floor) >= upgrade_kms [61]
 
-Extra km charge:
-    Rs 15.5 per km above base kms.
-    Flooring: 41.6 km → 41 km  (int() truncation — meters are ignored).
+Extra time: extra_hour_rate [Rs 200] per extra hour above base hours.
+    Leftover minutes >= partial_hour_minutes [31] count as one full hour.
 
-Night charge:
-    Rs 250 fixed if pickup hour OR drop hour falls in [23:00, 05:00).
+Extra km: extra_km_rate [Rs 17] per km above base kms.
+    Flooring: 41.6 km -> 41 km (meters are ignored).
+
+Night charge: night_charge [Rs 265] fixed if pickup or drop hour falls in
+    the night window [23:00 - 05:00).
 """
 from __future__ import annotations
 
@@ -29,20 +30,8 @@ from typing import Optional
 from loguru import logger
 
 from app.services.eee_taxi_csv import EeeTaxiRow
-
-# ── Constants ─────────────────────────────────────────────────────────────────
-
-EXTRA_KM_RATE      = Decimal("15.5")
-EXTRA_TIME_RATE    = Decimal("180")
-NIGHT_CHARGE_FIXED = Decimal("250")
-
-_PKG_BASE: dict[int, tuple[int, int]] = {
-    920:  (4, 40),
-    1840: (8, 80),
-}
-_UPGRADE_MINUTES = 6 * 60 + 31   # 391 — threshold for 4:40 → 8:80 upgrade
-_UPGRADE_KMS     = 61             # km threshold for upgrade
-
+from app.services.eee_taxi_fare_check import check_row
+from app.services.eee_taxi_rates import RateCard
 
 # ── Result dataclass ──────────────────────────────────────────────────────────
 
@@ -57,7 +46,7 @@ class RentalFareResult:
     excess_minutes:     int       # total minutes above base
     extra_time_hours:   int       # hours charged (post rounding)
     extra_time_charge:  Decimal
-    night_charge:       Decimal   # 0 or 250
+    night_charge:       Decimal   # 0 or rate card night charge
     trip_fare:          Decimal   # base + extra km + extra time + night
 
 
@@ -83,13 +72,6 @@ def _parse_hour(time_str: str) -> Optional[int]:
         return None
 
 
-def _is_night(hour: Optional[int]) -> bool:
-    """True if the hour is between 23:00 and 04:59 (11 PM – 5 AM)."""
-    if hour is None:
-        return False
-    return hour >= 23 or hour < 5
-
-
 def _parse_duration_minutes(s: str) -> int:
     """Parse 'H:MM' or 'HH:MM' → total minutes.  Returns 0 on failure."""
     if not s or not s.strip():
@@ -105,40 +87,41 @@ def _parse_duration_minutes(s: str) -> int:
 
 # ── Core fare calculation ─────────────────────────────────────────────────────
 
-def calculate_rental_fare(row: EeeTaxiRow) -> RentalFareResult:
+def calculate_rental_fare(row: EeeTaxiRow, rates: RateCard) -> RentalFareResult:
     """Compute the full rental fare breakdown for a single CSV row."""
     kms_floor    = int(row.billing_kms)  # sum of Kms Helper parts (trip + hub)
     duration_min = _parse_duration_minutes(row.trip_duration_str)
 
-    # ── Auto-upgrade 4:40 → 8:80 ─────────────────────────────────────────────
+    # ── Auto-upgrade small → large package ───────────────────────────────────
     effective_pkg = row.package
-    if effective_pkg == 920:
-        if duration_min >= _UPGRADE_MINUTES or kms_floor >= _UPGRADE_KMS:
-            effective_pkg = 1840
+    if effective_pkg == rates.small_fare:
+        if duration_min >= rates.upgrade_minutes or kms_floor >= rates.upgrade_kms:
+            effective_pkg = rates.large_fare
             logger.debug(
-                "Row {}: auto-upgrade 4:40→8:80 (duration={}min kms={})",
-                row.row_index, duration_min, kms_floor,
+                "Row {}: auto-upgrade {}→{} (duration={}min kms={})",
+                row.row_index, rates.small_fare, rates.large_fare, duration_min, kms_floor,
             )
 
-    base_hours, base_kms = _PKG_BASE.get(effective_pkg, (8, 80))
+    base_hours, base_kms = rates.package_base(effective_pkg)
 
     # ── Extra km ──────────────────────────────────────────────────────────────
     extra_km       = max(0, kms_floor - base_kms)
-    extra_km_charge = Decimal(extra_km) * EXTRA_KM_RATE
+    extra_km_charge = Decimal(extra_km) * rates.extra_km_rate
 
     # ── Extra time ────────────────────────────────────────────────────────────
     base_minutes     = base_hours * 60
     excess_minutes   = max(0, duration_min - base_minutes)
     full_extra_hours = excess_minutes // 60
     partial_minutes  = excess_minutes % 60
-    if partial_minutes >= 31:
+    if partial_minutes >= rates.partial_hour_minutes:
         full_extra_hours += 1
-    extra_time_charge = Decimal(full_extra_hours) * EXTRA_TIME_RATE
+    extra_time_charge = Decimal(full_extra_hours) * rates.extra_hour_rate
 
     # ── Night charge ──────────────────────────────────────────────────────────
     pickup_h     = _parse_hour(row.pickup_time_str)
     drop_h       = _parse_hour(row.drop_time_str)
-    night_charge = NIGHT_CHARGE_FIXED if (_is_night(pickup_h) or _is_night(drop_h)) else Decimal("0")
+    is_night     = rates.is_night_hour(pickup_h) or rates.is_night_hour(drop_h)
+    night_charge = rates.night_charge if is_night else Decimal("0")
 
     trip_fare = Decimal(effective_pkg) + extra_km_charge + extra_time_charge + night_charge
 
@@ -160,6 +143,7 @@ def calculate_rental_fare(row: EeeTaxiRow) -> RentalFareResult:
 def apply_rental_fares(
     rows: list[EeeTaxiRow],
     overrides: dict[int, Decimal],
+    rates: RateCard,
 ) -> list[EeeTaxiRow]:
     """Return rows with rental trip_fare replaced by calculated (or overridden) value.
 
@@ -176,8 +160,8 @@ def apply_rental_fares(
         if row.row_index in overrides:
             fare = overrides[row.row_index]
         else:
-            fare = calculate_rental_fare(row).trip_fare
-        result.append(dc_replace(row, trip_fare=fare, tax_base=fare))
+            fare = calculate_rental_fare(row, rates).trip_fare
+        result.append(dc_replace(row, trip_fare=fare, tax_base=fare, total_amount=Decimal("0")))
     return result
 
 
@@ -196,7 +180,7 @@ _REVIEW_HEADERS = [
 ]
 
 
-def generate_rental_review_csv(rows: list[EeeTaxiRow]) -> bytes:
+def generate_rental_review_csv(rows: list[EeeTaxiRow], rates: RateCard) -> bytes:
     """Generate a review CSV for rental rows so the user can verify / edit fares.
 
     Edit ``Calc_Trip_Fare`` in the downloaded file and re-upload to override
@@ -209,7 +193,7 @@ def generate_rental_review_csv(rows: list[EeeTaxiRow]) -> bytes:
     for row in rows:
         if row.booking_type != "rental":
             continue
-        res = calculate_rental_fare(row)
+        res = calculate_rental_fare(row, rates)
         csv_fare = row.trip_fare
         discrepancy = ""
         if csv_fare != Decimal("0") and csv_fare != res.trip_fare:
@@ -280,10 +264,13 @@ _CALC_EXTRA_HEADERS = [
     "Calc_Trip_Fare",
     "GST Type", "CGST (9%)", "SGST (9%)", "IGST (18%)",
     "Calc Total",
+    "Pickup Area", "Drop Area", "Card Fare", "Fare Check",
 ]
 
 
-def generate_full_calc_csv(rows: list[EeeTaxiRow], original_headers: list[str]) -> bytes:
+def generate_full_calc_csv(
+    rows: list[EeeTaxiRow], original_headers: list[str], rates: RateCard,
+) -> bytes:
     """Generate enriched CSV: all original columns preserved + calculated columns appended.
 
     Extra time is calculated from the Trip Duration column (H:MM format).
@@ -295,7 +282,7 @@ def generate_full_calc_csv(rows: list[EeeTaxiRow], original_headers: list[str]) 
 
     for row in rows:
         if row.booking_type == "rental":
-            res = calculate_rental_fare(row)
+            res = calculate_rental_fare(row, rates)
             eff_pkg           = str(res.effective_package)
             billing_kms       = str(row.billing_kms)
             extra_km          = str(res.extra_km)
@@ -313,6 +300,14 @@ def generate_full_calc_csv(rows: list[EeeTaxiRow], original_headers: list[str]) 
             extra_time_charge = ""
             night_charge      = ""
             calc_fare         = row.trip_fare
+
+        if row.booking_type == "p2p":
+            chk = check_row(row, rates)
+            fare_cols = [chk.from_area or "", chk.to_area or "",
+                         str(chk.card_fare) if chk.card_fare is not None else "",
+                         "OK" if chk.status == "ok" else chk.message]
+        else:
+            fare_cols = ["", "", "", ""]
 
         toll    = row.parking
         taxable = calc_fare + toll
@@ -346,6 +341,7 @@ def generate_full_calc_csv(rows: list[EeeTaxiRow], original_headers: list[str]) 
                 str(igst),
                 str(total),
             ]
+            + fare_cols
         )
 
     return buf.getvalue().encode("utf-8-sig")
@@ -376,6 +372,7 @@ def parse_calc_csv(file_bytes: bytes) -> dict[int, Decimal]:
 def apply_fare_overrides(
     rows: list[EeeTaxiRow],
     overrides: dict[int, Decimal],
+    rates: RateCard,
 ) -> list[EeeTaxiRow]:
     """Return rows with trip_fare set correctly for invoice generation.
 
@@ -387,10 +384,10 @@ def apply_fare_overrides(
     for row in rows:
         if row.row_index in overrides:
             fare = overrides[row.row_index]
-            result.append(dc_replace(row, trip_fare=fare, tax_base=fare))
+            result.append(dc_replace(row, trip_fare=fare, tax_base=fare, total_amount=Decimal("0")))
         elif row.booking_type == "rental":
-            fare = calculate_rental_fare(row).trip_fare
-            result.append(dc_replace(row, trip_fare=fare, tax_base=fare))
+            fare = calculate_rental_fare(row, rates).trip_fare
+            result.append(dc_replace(row, trip_fare=fare, tax_base=fare, total_amount=Decimal("0")))
         else:
             result.append(row)
     return result

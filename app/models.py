@@ -273,3 +273,18 @@ class EeeTaxiInvoice(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<EeeTaxiInvoice {self.id} no={self.invoice_no} status={self.status}>"
+
+
+class EeeTaxiRateCard(Base):
+    """Single-row table holding the editable EEE-Taxi rate card.
+
+    ``rates`` is the JSON form of ``app.services.eee_taxi_rates.RateCard``;
+    ``edit_password_hash`` protects edits on the Rate Card page.
+    """
+    __tablename__ = "eee_taxi_rate_card"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    rates: Mapped[dict] = mapped_column(JSON)
+    updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    edit_password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
