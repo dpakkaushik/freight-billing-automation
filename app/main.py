@@ -10,6 +10,7 @@ button. We'll re-enable it when we wire that path.
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -58,11 +59,16 @@ app.include_router(eee_taxi_api.router)
 app.include_router(eee_taxi_rates_api.router)
 
 
-@app.middleware("http")
-async def capture_api_usage(request: Request, call_next):
-    response = await call_next(request)
+# Usage events are written off the request path: each write is several database
+# round trips, and the response should not wait for analytics.
+_usage_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="usage-events")
+
+# Requests that are not user activity and are not worth a database write.
+_UNTRACKED_PATHS = ("/healthz", "/static/", "/favicon.ico")
+
+
+def _record_usage(auth_header: str, path: str, method: str, status_code: int) -> None:
     user_id = None
-    auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header.split(" ", 1)[1]
         try:
@@ -80,20 +86,34 @@ async def capture_api_usage(request: Request, call_next):
         with SessionLocal() as db:  # type: ignore[call-arg]
             event = ApiUsageEvent(
                 user_id=user_id,
-                path=request.url.path,
-                method=request.method,
-                status_code=response.status_code,
+                path=path,
+                method=method,
+                status_code=status_code,
             )
             db.add(event)
             db.commit()
             record_api_event({
                 "user_id": user_id,
-                "path": request.url.path,
-                "method": request.method,
-                "status_code": response.status_code,
+                "path": path,
+                "method": method,
+                "status_code": status_code,
             })
     except Exception:
         logger.exception("Failed to record API usage event")
+
+
+@app.middleware("http")
+async def capture_api_usage(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if request.method != "OPTIONS" and not path.startswith(_UNTRACKED_PATHS):
+        _usage_executor.submit(
+            _record_usage,
+            request.headers.get("Authorization", ""),
+            path,
+            request.method,
+            response.status_code,
+        )
     return response
 
 
