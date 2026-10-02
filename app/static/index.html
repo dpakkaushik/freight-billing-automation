@@ -2754,7 +2754,7 @@ async function eetProceed() {
       meta.style.display = "";
       meta.textContent   = parts.join("  |  ");
       _eetPollTimer = setInterval(eetPollBatch, 2000);
-      eetPollBatch();
+      eetDriveBatch();
     })
     .catch(e => { alert("Failed to start batch: " + e); });
 }
@@ -2768,7 +2768,10 @@ function eetPollBatch() {
       _eetLastInvoices = d.invoices || [];
       eetRenderSummary(d);
       eetRenderInvoices(d.invoices);
-      if (d.sign_mode === "usb") eetSignLoop(d.invoices);
+      const stalled = (d.invoices || []).some(i =>
+        i.status === "pending" ||
+        (i.status === "awaiting_signature" && !_eetSignAttempted.has(i.id)));
+      if (stalled && !_eetDriving && !_eetSignHalted) eetDriveBatch();
       const finished = ["completed","partial","failed"].includes(d.status);
       if (finished) {
         clearInterval(_eetPollTimer);
@@ -2783,7 +2786,7 @@ function eetPollBatch() {
 }
 
 function eetRenderSummary(d) {
-  const label = { pending:"Pending", processing:"Processing...",
+  const label = { pending:"Pending", processing:"Generating invoices...",
     awaiting_signature:"Signing with USB token...",
     completed:"Completed", partial:"Partially done", failed:"Failed" };
   const awaiting = d.awaiting ? ", " + d.awaiting + " to sign" : "";
@@ -2856,14 +2859,14 @@ function authHeaders() {
 // the signed PDF back. One invoice at a time — the token handles one op at once.
 
 let _eetPin = "";
-let _eetSigning = false;        // queue currently running
+let _eetDriving = false;        // generate/sign driver currently running
 let _eetSignHalted = false;     // stopped on wrong PIN / missing token / helper down
 let _eetSignCurrent = null;     // invoice id being signed right now
 let _eetSignAttempted = new Set();
 let _eetLastInvoices = [];
 
 function eetResetSignState() {
-  _eetPin = ""; _eetSigning = false; _eetSignHalted = false; _eetSignCurrent = null;
+  _eetPin = ""; _eetDriving = false; _eetSignHalted = false; _eetSignCurrent = null;
   _eetSignAttempted = new Set(); _eetLastInvoices = [];
   eetSetSignNote("");
 }
@@ -2934,42 +2937,78 @@ async function eetSignOne(inv) {
   }
 }
 
-async function eetSignLoop(invoices) {
-  if (_eetSigning || _eetSignHalted || !_eetPin || !_eetBatchId) return;
-  const pending = (invoices || []).filter(i =>
-    i.status === "awaiting_signature" && !_eetSignAttempted.has(i.id));
-  if (!pending.length) return;
-
-  _eetSigning = true;
+// The browser drives the whole batch: generate one invoice, sign it, repeat.
+// The server cannot do this on its own, because work started in a background
+// thread stops the moment a serverless instance is suspended after a response.
+async function eetDriveBatch() {
+  if (_eetDriving || !_eetBatchId) return;
+  _eetDriving = true;
   const batchId = _eetBatchId;
-  eetSetSignNote(`<span class="spinner"></span> Signing with the USB token &mdash; keep it connected.`);
+
   try {
-    for (const inv of pending) {
-      if (_eetSignHalted || _eetBatchId !== batchId) break;
-      _eetSignCurrent = inv.id;
-      eetRenderInvoices(_eetLastInvoices);
-      try {
-        await eetSignOne(inv);
-        _eetSignAttempted.add(inv.id);
-      } catch (e) {
-        if (e.fatal) {
-          _eetSignHalted = true;
-          eetSetSignNote(
-            `${e.message}<br>
-             <button class="btn secondary sm" style="margin-top:6px;font-size:11px;padding:3px 10px;"
-                     onclick="eetRetrySigning()">Retry signing</button>`, "err");
+    while (_eetBatchId === batchId) {
+      const res = await fetch("/api/eee-taxi/batch/" + batchId, { headers: authHeaders() });
+      if (!res.ok) break;
+      const d = await res.json();
+      _eetLastInvoices = d.invoices || [];
+      eetRenderSummary(d);
+      eetRenderInvoices(d.invoices);
+
+      // 1. Generate anything still pending, one invoice per request.
+      if ((d.invoices || []).some(i => i.status === "pending")) {
+        if (!_eetSignHalted) {
+          eetSetSignNote(`<span class="spinner"></span> Generating invoices &mdash; ` +
+                         `${d.done + d.failed + (d.awaiting || 0)} of ${d.total_rows} ready.`);
+        }
+        const g = await fetch("/api/eee-taxi/batch/" + batchId + "/generate-next",
+                              { method: "POST", headers: authHeaders() });
+        if (g.status === 401) { logout(); break; }
+        if (!g.ok) {
+          const err = await g.json().catch(() => ({}));
+          eetSetSignNote("Generation failed: " + (err.detail || g.status), "err");
           break;
         }
-        _eetSignAttempted.add(inv.id);
-        const fd = new FormData();
-        fd.append("error", e.message || "Signing failed.");
-        await fetch("/api/eee-taxi/batch/" + batchId + "/invoice/" + inv.id + "/sign-failed",
-                    { method: "POST", headers: authHeaders(), body: fd }).catch(() => {});
+        continue;
       }
+
+      // 2. Sign the next invoice waiting for the USB token.
+      if (d.sign_mode === "usb" && !_eetSignHalted && _eetPin) {
+        const next = (d.invoices || []).find(
+          i => i.status === "awaiting_signature" && !_eetSignAttempted.has(i.id));
+        if (next) {
+          eetSetSignNote(`<span class="spinner"></span> Signing with the USB token &mdash; keep it connected.`);
+          _eetSignCurrent = next.id;
+          eetRenderInvoices(_eetLastInvoices);
+          try {
+            await eetSignOne(next);
+            _eetSignAttempted.add(next.id);
+          } catch (e) {
+            if (e.fatal) {
+              _eetSignHalted = true;
+              eetSetSignNote(
+                `${e.message}<br>
+                 <button class="btn secondary sm" style="margin-top:6px;font-size:11px;padding:3px 10px;"
+                         onclick="eetRetrySigning()">Retry signing</button>`, "err");
+              break;
+            }
+            _eetSignAttempted.add(next.id);
+            const fd = new FormData();
+            fd.append("error", e.message || "Signing failed.");
+            await fetch("/api/eee-taxi/batch/" + batchId + "/invoice/" + next.id + "/sign-failed",
+                        { method: "POST", headers: authHeaders(), body: fd }).catch(() => {});
+          } finally {
+            _eetSignCurrent = null;
+          }
+          continue;
+        }
+      }
+
+      break;   // nothing left this pass
     }
+  } catch (e) {
+    eetSetSignNote("Stopped: " + (e.message || e), "err");
   } finally {
-    _eetSigning = false;
-    _eetSignCurrent = null;
+    _eetDriving = false;
     if (!_eetSignHalted) eetSetSignNote("");
     if (_eetBatchId === batchId) eetPollBatch();
   }
@@ -2982,7 +3021,7 @@ function eetRetrySigning() {
   _eetSignHalted = false;
   eetSetSignNote(`<span class="spinner"></span> Retrying...`);
   if (!_eetPollTimer) _eetPollTimer = setInterval(eetPollBatch, 2000);
-  eetPollBatch();
+  eetDriveBatch();
 }
 
 // Downloads go through fetch so the login token is sent; a plain link can't carry it.

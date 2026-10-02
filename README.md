@@ -112,23 +112,43 @@ expected at this stage.
 
 ---
 
-## USB DSC signing (EEE-Taxi) — how it works on Vercel
+## EEE-Taxi batches on Vercel — the browser drives the work
 
-The web app runs on Vercel, which has no access to a USB token, so signing is
-split between the server and the user's PC:
+Two constraints shape this flow, and both come from running on Vercel:
 
-1. The server generates every invoice PDF unsigned and stores the bytes in the
-   database (`eee_taxi_invoices.pdf_data`) with the signature-box position.
-   In **USB DSC** mode the invoice goes to status `awaiting_signature`.
-2. The browser polls the batch; for each unsigned invoice it downloads the PDF,
-   posts it to **PalliaSignHelper.exe** on `http://127.0.0.1:7777/sign` together
-   with the PIN and the signature box, and uploads the signed PDF back to
-   `POST /api/eee-taxi/batch/{batch}/invoice/{id}/signed`.
-3. The server stores the signed bytes, marks the invoice `done`, and flips the
+- **A serverless instance is suspended as soon as it sends the response.** Work
+  started in a background thread stops getting CPU, so the batch stalls with no
+  error. Generation therefore happens one invoice per HTTP request.
+- **The server cannot reach a USB token** plugged into someone's desk, so the
+  DSC signature has to be produced on that PC.
+
+The browser orchestrates both steps:
+
+1. `POST /api/eee-taxi/batch` records the batch and one row per invoice
+   (`pending`) and stores the inputs needed to rebuild any row later: the CSV,
+   the re-uploaded calculated CSV, the chosen card-fare rows and a snapshot of
+   the rate card. Nothing is generated yet.
+2. `POST /api/eee-taxi/batch/{id}/generate-next` generates **one** invoice and
+   returns how many remain. The browser calls it in a loop. Each call rebuilds
+   its row from the stored inputs, because consecutive requests may land on
+   different instances and nothing survives in memory between them.
+   In **USB DSC** mode the invoice becomes `awaiting_signature`; in **Dummy
+   (Test)** mode it is stamped server-side and becomes `done`.
+3. For each awaiting invoice the browser downloads the unsigned PDF, posts it to
+   **PalliaSignHelper.exe** on `http://127.0.0.1:7777/sign` with the PIN and the
+   signature box, and uploads the result to
+   `POST /api/eee-taxi/batch/{id}/invoice/{inv}/signed`.
+4. The server stores the signed bytes, marks the invoice `done`, and flips the
    batch to `completed` / `partial` once nothing is left to sign.
 
-The PIN never leaves the browser; the server never sees it. **Dummy (Test)**
-mode still stamps a placeholder on the server and needs no helper.
+The PIN never leaves the browser and the server never sees it. PDF bytes are
+kept in the database rather than on disk, because a serverless disk is
+per-instance and ephemeral; the unsigned copy is dropped once the signed one
+arrives.
+
+Because the browser is the driver, **the tab must stay open** until the batch
+finishes. Closing it mid-run leaves the remaining invoices `pending` or
+`awaiting_signature`.
 
 ### Installing the signing helper on a PC
 

@@ -75,6 +75,14 @@ def _migrate_existing_db() -> None:
             existing = {c["name"] for c in inspector.get_columns("eee_taxi_batches")}
             if "sign_mode" not in existing:
                 conn.execute(text("ALTER TABLE eee_taxi_batches ADD COLUMN sign_mode VARCHAR(16)"))
+            if "csv_data" not in existing:
+                conn.execute(text(f"ALTER TABLE eee_taxi_batches ADD COLUMN csv_data {binary_type}"))
+            if "calc_csv_data" not in existing:
+                conn.execute(text(f"ALTER TABLE eee_taxi_batches ADD COLUMN calc_csv_data {binary_type}"))
+            if "card_fare_rows" not in existing:
+                conn.execute(text(f"ALTER TABLE eee_taxi_batches ADD COLUMN card_fare_rows {json_type}"))
+            if "rates_snapshot" not in existing:
+                conn.execute(text(f"ALTER TABLE eee_taxi_batches ADD COLUMN rates_snapshot {json_type}"))
             conn.commit()
         if "eee_taxi_invoices" in inspector.get_table_names():
             existing = {c["name"] for c in inspector.get_columns("eee_taxi_invoices")}

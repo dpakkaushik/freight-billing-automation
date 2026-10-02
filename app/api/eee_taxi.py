@@ -1,7 +1,6 @@
 """EEE-Taxi invoice batch API endpoints."""
 from __future__ import annotations
 
-import threading
 import uuid
 from datetime import date, datetime
 from pathlib import Path
@@ -20,13 +19,13 @@ from app.services.eee_taxi_fare_check import STATUS_OK, apply_card_fares, check_
 from app.services.eee_taxi_pipeline import (
     build_zip,
     finalize_batch_status,
+    generate_next_invoice,
     has_signed_pdf,
-    run_batch,
     signed_filename,
     signed_pdf_bytes,
     unsigned_pdf_bytes,
 )
-from app.services.eee_taxi_rates import get_rate_card
+from app.services.eee_taxi_rates import get_rate_card, rate_card_to_dict
 from app.services.eee_taxi_rental_calc import (
     apply_fare_overrides,
     generate_full_calc_csv,
@@ -123,10 +122,13 @@ async def start_batch(
     calc_csv: Optional[UploadFile] = File(None),
     use_card_fare_rows: str = Form(""),
 ):
-    """Upload trip CSV (and optional modified calculated CSV) and start batch generation.
+    """Upload trip CSV (and optional modified calculated CSV) and create a batch.
 
-    USB signing happens in the browser through the local signing helper, so
-    the DSC PIN is never sent to this server.
+    This only records the batch and its rows. The browser then calls
+    generate-next once per invoice, because work started in a background
+    thread stops as soon as a serverless instance is suspended. USB signing
+    also happens in the browser through the local signing helper, so the DSC
+    PIN is never sent to this server.
     """
     csv_bytes = await csv_file.read()
     with SessionLocal() as db:
@@ -150,9 +152,11 @@ async def start_batch(
 
     # ── Apply fare overrides from re-uploaded calculated CSV (if provided) ─────
     overrides: dict = {}
+    calc_bytes: bytes | None = None
     if calc_csv is not None:
-        calc_bytes = await calc_csv.read()
-        if calc_bytes.strip():
+        raw = await calc_csv.read()
+        if raw.strip():
+            calc_bytes = raw
             overrides = parse_calc_csv(calc_bytes)
             logger.info("Fare overrides from calculated CSV: {} rows", len(overrides))
 
@@ -167,8 +171,7 @@ async def start_batch(
     p2p_count    = sum(1 for r in rows if r.booking_type == "p2p")
     rental_count = sum(1 for r in rows if r.booking_type == "rental")
 
-    batch_id   = uuid.uuid4().hex
-    output_dir = Path(settings.eee_taxi_output_dir) / batch_id
+    batch_id = uuid.uuid4().hex
 
     with SessionLocal() as db:
         batch = EeeTaxiBatch(
@@ -178,6 +181,11 @@ async def start_batch(
             total_rows=len(rows),
             csv_filename=csv_file.filename,
             sign_mode=sign_mode,
+            # Stored so any later request can rebuild any row on its own.
+            csv_data=csv_bytes,
+            calc_csv_data=calc_bytes,
+            card_fare_rows=sorted(card_rows),
+            rates_snapshot=rate_card_to_dict(rates),
         )
         db.add(batch)
         db.flush()
@@ -197,27 +205,29 @@ async def start_batch(
         batch_id, len(rows), p2p_count, rental_count, start_suffix,
     )
 
-    def _run():
-        with SessionLocal() as db_thread:
-            run_batch(
-                batch_id=batch_id,
-                rows=rows,
-                invoice_date=inv_date,
-                start_suffix=start_suffix,
-                output_dir=output_dir,
-                db=db_thread,
-                rates=rates,
-                sign_mode=sign_mode,
-            )
-
-    threading.Thread(target=_run, daemon=True).start()
-
     return {
         "batch_id":     batch_id,
         "total_rows":   len(rows),
         "p2p_count":    p2p_count,
         "rental_count": rental_count,
     }
+
+
+# ── Generate one invoice ──────────────────────────────────────────────────────
+
+@router.post("/batch/{batch_id}/generate-next")
+def generate_next(batch_id: str):
+    """Generate the next pending invoice of a batch.
+
+    The browser calls this repeatedly until ``remaining`` is 0. One invoice per
+    request keeps every call short, so there is no serverless timeout and no
+    reliance on work continuing after the response is sent.
+    """
+    with SessionLocal() as db:
+        try:
+            return generate_next_invoice(batch_id, db)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 # ── Batch status ──────────────────────────────────────────────────────────────

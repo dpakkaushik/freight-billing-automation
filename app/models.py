@@ -238,6 +238,14 @@ class EeeTaxiBatch(Base):
     total_rows: Mapped[int] = mapped_column(Integer, default=0)
     csv_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sign_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)   # "usb" | "dummy"
+
+    # Everything needed to rebuild any row's invoice in a later request. The
+    # browser drives generation one invoice at a time, and each request may
+    # land on a different serverless instance, so nothing can stay in memory.
+    csv_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    calc_csv_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    card_fare_rows: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    rates_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     invoices: Mapped[list["EeeTaxiInvoice"]] = relationship(
