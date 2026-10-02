@@ -1,0 +1,11 @@
+# Test-only dependencies.
+#   pip install -r requirements.txt -r requirements-dev.txt
+pytest>=8.0
+httpx>=0.27
+
+# Ships real Postgres binaries so tests/test_postgres_migration.py can run the
+# startup migration against Postgres instead of SQLite. SQLite ignores VARCHAR
+# widths, so without this a too-narrow column passes every local test and only
+# fails in production (as the 18-char 'awaiting_signature' did against
+# VARCHAR(16)). The test skips when this is not installed.
+pgserver>=0.1

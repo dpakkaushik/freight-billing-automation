@@ -8,6 +8,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Iterator
 
+from loguru import logger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -48,6 +49,39 @@ def init_db() -> None:
     settings.ensure_dirs()
     Base.metadata.create_all(bind=engine)
     _migrate_existing_db()
+
+
+def _widen_varchar_columns(conn, inspector) -> None:
+    """Grow VARCHAR columns whose declared width no longer fits their values.
+
+    ``create_all`` never alters an existing table, so a column keeps the width
+    it was first created with. Postgres rejects anything longer
+    (StringDataRightTruncation); SQLite ignores VARCHAR widths entirely, which
+    is exactly why this has to be checked rather than assumed from local runs.
+    """
+    from sqlalchemy import text
+
+    if conn.dialect.name == "sqlite":
+        return   # SQLite does not enforce VARCHAR lengths
+
+    # (table, column, required width) — driven by the longest enum value stored.
+    wanted = [
+        ("eee_taxi_batches",  "status", 24),   # 'awaiting_signature' is 18
+        ("eee_taxi_invoices", "status", 24),
+    ]
+    tables = set(inspector.get_table_names())
+    for table, column, width in wanted:
+        if table not in tables:
+            continue
+        col = next((c for c in inspector.get_columns(table) if c["name"] == column), None)
+        if col is None:
+            continue
+        current = getattr(col["type"], "length", None)
+        if current is not None and current < width:
+            conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} TYPE VARCHAR({width})"))
+            conn.commit()
+            logger.info("Widened {}.{} from VARCHAR({}) to VARCHAR({})",
+                        table, column, current, width)
 
 
 def _migrate_existing_db() -> None:
@@ -93,6 +127,8 @@ def _migrate_existing_db() -> None:
             if "sig_box" not in existing:
                 conn.execute(text(f"ALTER TABLE eee_taxi_invoices ADD COLUMN sig_box {json_type}"))
             conn.commit()
+
+        _widen_varchar_columns(conn, inspect(conn))
         # external_api_events is created by create_all; no ALTER TABLE needed
 
 
