@@ -20,7 +20,6 @@ from jose import JWTError, jwt
 from loguru import logger
 
 from app import __version__
-from app.api import billing as billing_api
 from app.api import auth as auth_api
 from app.api import dashboard as dashboard_api
 from app.api import eee_taxi as eee_taxi_api
@@ -49,7 +48,11 @@ app = FastAPI(
 )
 
 app.include_router(auth_api.router)
-app.include_router(billing_api.router)
+if settings.billing_module_enabled:
+    # Imported only when enabled: it pulls in OCR dependencies at import time.
+    from app.api import billing as billing_api
+
+    app.include_router(billing_api.router)
 app.include_router(dashboard_api.router)
 app.include_router(eee_taxi_api.router)
 app.include_router(eee_taxi_rates_api.router)

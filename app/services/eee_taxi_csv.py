@@ -5,29 +5,35 @@ Leading/trailing spaces, internal newlines, and spaces around slashes are
 normalised before matching so Excel-wrapped headers work transparently.
 
 Required headers (only those needed for invoice creation):
-    Date, Car No, DS no/Route No, Guest Name, Pickup Location, Drop Location,
+    Date, Cab No, DS no/Route No, Guest Name, Pickup Address, Drop Location,
     Pick up Time, Drop Time, Trip Duration, Total kms,
-    Package, Trip Fare, Toll/MCD,
-    Entity    <- billing entity name (GSTIN looked up from internal master)
+    Package, Trip Fare, MCD, Parking, Toll,
+    Entity, Entity Gst   <- both required; the GSTIN is never guessed
+
+    Toll/MCD passthrough on the invoice = MCD + Parking + Toll.
+    Total kms may be "A+B" (billing + dead run); the parts are summed.
 
 Optional headers (used when present, silently ignored when absent):
-    Entity Gst    <- GSTIN; if present takes precedence over name-based lookup
-    Kms Helper    <- "A+B" billing/dead-run km split; first part used for rental
-    Drop Zone     <- city/zone name; used to pick correct state GSTIN
-                     and, with Pickup Zone, to check P2P fares against the rate card
+    Kms Helper    <- legacy "A+B" km split column; summed for rentals
+    Drop Zone     <- with Pickup Zone, checks P2P fares against the rate card
     Pickup Zone   <- city/zone name of the pickup (P2P fare check)
+
+Any row with a blank, unknown or mismatched Entity / Entity Gst rejects the
+whole file with a list of the offending rows, so nothing is billed to a guess.
 
 Rental-classification (package fares come from the editable rate card):
     Package = small package fare (default 950)  -> 4:40 rental
     Package = large package fare (default 1900) -> 8:80 rental
     Any other value -> P2P fixed-fare trip
 
-If any required header is missing the parser raises ValueError listing the
-missing names so the caller can return a 400 and ask for re-upload.
+If any required header is missing the parser raises ValueError naming the
+expected header (and the closest header found in the file) so the caller can
+return a 400 and ask for re-upload.
 """
 from __future__ import annotations
 
 import csv
+import difflib
 import io
 import re
 from dataclasses import dataclass
@@ -36,25 +42,31 @@ from decimal import Decimal, InvalidOperation
 
 from loguru import logger
 
+from app.services.eee_taxi_clients import CLIENT_MASTER
 from app.services.eee_taxi_rates import RateCard
 
-# ── Required column names (exact, case-sensitive after normalisation) ─────────
-REQUIRED_HEADERS: frozenset[str] = frozenset({
-    "date",
-    "car no",
-    "ds no/route no",
-    "guest name",
-    "pickup location",
-    "drop location",
-    "pick up time",
-    "drop time",
-    "trip duration",
-    "total kms",
-    "package",
-    "trip fare",
-    "toll/mcd",
-    "entity",   # billing entity name; GSTIN resolved from internal master
-})
+# ── Required column names: normalised form -> header as the user should type it ─
+REQUIRED_HEADERS: dict[str, str] = {
+    "date": "Date",
+    "cab no": "Cab No",
+    "ds no/route no": "DS no/Route No",
+    "guest name": "Guest Name",
+    "pickup address": "Pickup Address",
+    "drop location": "Drop Location",
+    "pick up time": "Pick up Time",
+    "drop time": "Drop Time",
+    "trip duration": "Trip Duration",
+    "total kms": "Total kms",
+    "package": "Package",
+    "trip fare": "Trip Fare",
+    "mcd": "MCD",
+    "parking": "Parking",
+    "toll": "Toll",
+    "entity": "Entity",
+    "entity gst": "Entity Gst",
+}
+
+MAX_ROW_ERRORS_SHOWN = 20
 
 @dataclass(frozen=True)
 class EeeTaxiRow:
@@ -113,6 +125,53 @@ def _dec(s: str) -> Decimal:
         return Decimal("0")
 
 
+def _kms(s: str) -> Decimal:
+    """Total kms cell: plain number, or "A+B" (billing + dead run) summed."""
+    return sum((_dec(part) for part in s.split("+")), Decimal("0"))
+
+
+def _header_mismatch_message(missing: list[str], raw_headers: list[str]) -> str:
+    """Name each expected header, plus the closest header found in the file."""
+    # normalised -> header as the user typed it (newlines collapsed)
+    unmatched = {
+        _normalize_header(h): " ".join(h.split())
+        for h in raw_headers
+        if _normalize_header(h) and _normalize_header(h) not in REQUIRED_HEADERS
+    }
+    lines = []
+    for norm in missing:
+        expected = REQUIRED_HEADERS[norm]
+        close = difflib.get_close_matches(norm, list(unmatched), n=1, cutoff=0.75)
+        if not close:   # short forms, e.g. "GST" for "Entity Gst"
+            close = [h for h in unmatched if len(h) >= 3 and h in norm][:1]
+        if close:
+            lines.append(f'  - Found "{unmatched[close[0]]}" -> rename it to "{expected}"')
+        else:
+            lines.append(f'  - Missing column "{expected}"')
+    shown = [" ".join(h.split()) for h in raw_headers if h.strip()]
+    for name in dict.fromkeys(shown):
+        if shown.count(name) > 1:
+            lines.append(f'  - "{name}" appears {shown.count(name)} times; rename the extra column')
+    return (
+        "Header name mismatch. Please fix these column headers and re-upload:\n"
+        + "\n".join(lines)
+    )
+
+
+def _entity_error(entity_name: str, gstin: str) -> str:
+    """Empty string if Entity / Entity Gst are valid, else what is wrong."""
+    if not entity_name:
+        return "Entity is blank"
+    if not gstin:
+        return "Entity Gst is blank"
+    record = CLIENT_MASTER.get(gstin)
+    if record is None:
+        return f"Entity Gst {gstin} is not in the company list"
+    if record.entity_name.lower().strip() != entity_name.lower().strip():
+        return f"Entity Gst {gstin} belongs to {record.entity_name}, not {entity_name!r}"
+    return ""
+
+
 # ── Main parser ───────────────────────────────────────────────────────────────
 
 def parse_eee_taxi_csv(
@@ -122,7 +181,8 @@ def parse_eee_taxi_csv(
 
     original_headers is the raw header row as-is (for round-trip output).
     Raises ValueError with a descriptive message if required headers are
-    missing so the caller can return a 400 and ask for re-upload.
+    missing, or if any row has a bad Entity / Entity Gst / Date, so the
+    caller can return a 400 and ask for re-upload.
     """
     text = file_bytes.decode("utf-8-sig")
     reader = csv.reader(io.StringIO(text))
@@ -130,7 +190,9 @@ def parse_eee_taxi_csv(
     rows_out: list[EeeTaxiRow] = []
     header_map: dict[str, int] = {}
     original_headers: list[str] = []
+    row_errors: list[str] = []
     idx = 0
+    sheet_row = 1   # spreadsheet row number, header = row 1
 
     for raw in reader:
         # ── Build header map from the first non-empty row ─────────────────────
@@ -144,14 +206,12 @@ def parse_eee_taxi_csv(
                     header_map[norm] = i          # keep FIRST occurrence
 
             # ── Validate required headers ─────────────────────────────────────
-            missing = sorted(REQUIRED_HEADERS - header_map.keys())
+            missing = [h for h in REQUIRED_HEADERS if h not in header_map]
             if missing:
-                raise ValueError(
-                    "CSV is missing required column(s): "
-                    + ", ".join(f'"{m}"' for m in missing)
-                    + ". Please add the missing columns and re-upload."
-                )
+                raise ValueError(_header_mismatch_message(missing, raw))
             continue
+
+        sheet_row += 1
 
         # ── Skip blank / summary rows ─────────────────────────────────────────
         if not any(c.strip() for c in raw):
@@ -165,30 +225,19 @@ def parse_eee_taxi_csv(
                 return ""
             return _raw[i].strip()
 
-        entity_name = col("entity")
-        if not entity_name:
-            logger.debug("Row {}: skipping — Entity blank", idx)
-            idx += 1
-            continue
-
-        # Resolve GSTIN: CSV column if valid, otherwise internal name lookup
-        drop_zone    = col("drop zone")
+        entity_name  = col("entity")
         client_gstin = col("entity gst").upper().replace(" ", "")
-        if not client_gstin or len(client_gstin) < 10 or not client_gstin[0].isdigit():
-            from app.services.eee_taxi_clients import UnknownClientError, lookup_client_by_name
-            try:
-                _rec     = lookup_client_by_name(entity_name, drop_zone)
-                client_gstin = _rec.gstin
-            except UnknownClientError:
-                logger.warning("Row {}: unknown entity {!r}, skipping", idx, entity_name)
-                idx += 1
-                continue
+        drop_zone    = col("drop zone")
+        label        = f"Row {sheet_row} ({col('guest name') or 'no guest name'})"
 
+        entity_problem = _entity_error(entity_name, client_gstin)
+        if entity_problem:
+            row_errors.append(f"{label}: {entity_problem}")
+            continue
         try:
             trip_date = _parse_date(col("date"))
         except ValueError:
-            logger.warning("Row {}: bad date {!r}, skipping", idx, col("date"))
-            idx += 1
+            row_errors.append(f"{label}: cannot read Date {col('date')!r}")
             continue
 
         # ── Booking type ──────────────────────────────────────────────────────
@@ -200,7 +249,7 @@ def parse_eee_taxi_csv(
         booking_type = "rental" if package in rates.rental_packages else "p2p"
 
         # ── Kms: total odometer vs billing kms (first part of Kms Helper) ─────
-        total_kms_val = _dec(col("total kms"))
+        total_kms_val = _kms(col("total kms"))
         kms_helper    = col("kms helper")  # e.g. "70+20" → sum=90 used for billing
         if booking_type == "rental" and kms_helper:
             try:
@@ -212,19 +261,19 @@ def parse_eee_taxi_csv(
 
         # ── Fare columns ──────────────────────────────────────────────────────
         trip_fare = _dec(col("trip fare"))
-        toll      = _dec(col("toll/mcd"))
+        toll      = _dec(col("mcd")) + _dec(col("parking")) + _dec(col("toll"))
         tax_base  = trip_fare
         total     = _dec(col("total trip fare"))
 
         rows_out.append(EeeTaxiRow(
             row_index=idx,
             trip_date=trip_date,
-            car_no=col("car no"),
+            car_no=col("cab no"),
             route_no=col("ds no/route no"),
             entity_name=entity_name,
             client_gstin=client_gstin,
             guest_name=col("guest name"),
-            pickup_location=col("pickup location"),
+            pickup_location=col("pickup address"),
             drop_location=col("drop location"),
             pickup_time_str=col("pick up time"),
             drop_time_str=col("drop time"),
@@ -245,6 +294,16 @@ def parse_eee_taxi_csv(
             drop_zone=drop_zone,
         ))
         idx += 1
+
+    if row_errors:
+        shown = row_errors[:MAX_ROW_ERRORS_SHOWN]
+        more = len(row_errors) - len(shown)
+        raise ValueError(
+            "Some rows need fixing before invoices can be made. "
+            "Nothing was billed; please correct these and re-upload:\n"
+            + "\n".join(f"  - {e}" for e in shown)
+            + (f"\n  ...and {more} more" if more else "")
+        )
 
     rental_count = sum(1 for r in rows_out if r.booking_type == "rental")
     p2p_count    = sum(1 for r in rows_out if r.booking_type == "p2p")

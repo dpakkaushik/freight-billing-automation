@@ -7,12 +7,13 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from loguru import logger
 
 from app.config import settings
 from app.database import SessionLocal
+from app.services.auth import require_permission
 from app.models import EeeTaxiBatch, EeeTaxiBatchStatus, EeeTaxiInvoice, EeeTaxiInvoiceStatus
 from app.services.eee_taxi_csv import parse_eee_taxi_csv
 from app.services.eee_taxi_fare_check import STATUS_OK, apply_card_fares, check_p2p_fares
@@ -24,7 +25,11 @@ from app.services.eee_taxi_rental_calc import (
     parse_calc_csv,
 )
 
-router = APIRouter(prefix="/api/eee-taxi", tags=["eee-taxi"])
+router = APIRouter(
+    prefix="/api/eee-taxi",
+    tags=["eee-taxi"],
+    dependencies=[Depends(require_permission("eee_taxi"))],
+)
 
 
 # ── Calculate fares for all rows ─────────────────────────────────────────────

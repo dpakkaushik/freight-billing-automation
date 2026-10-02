@@ -31,6 +31,12 @@ def setup_logging() -> None:
             "<cyan>{name}:{function}:{line}</cyan> - <level>{message}</level>"
         ),
     )
+    if not settings.log_to_file:
+        # Serverless (Vercel): stdout is collected by the platform, the disk is
+        # ephemeral, and the multiprocessing queue behind enqueue=True isn't available.
+        _CONFIGURED = True
+        logger.info("Logging initialised (level={}, stdout only)", settings.log_level)
+        return
     logger.add(
         settings.log_dir / "app.log",
         level=settings.log_level.upper(),

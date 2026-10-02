@@ -168,8 +168,8 @@ def apply_rental_fares(
 # ── Review CSV generation & parsing ──────────────────────────────────────────
 
 _REVIEW_HEADERS = [
-    "Row", "Date", "Car No", "DS no/Route No", "Guest Name",
-    "Pickup Location", "Drop Location",
+    "Row", "Date", "Cab No", "DS no/Route No", "Guest Name",
+    "Pickup Address", "Drop Location",
     "Pick up Time", "Drop Time", "Trip Duration", "Billing kms",
     "CSV_Package", "Effective_Package",
     "Calc_Extra_Km", "Calc_Extra_Km_Charge",

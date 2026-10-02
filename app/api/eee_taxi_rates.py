@@ -1,8 +1,8 @@
 """EEE-Taxi rate card API.
 
-Any signed-in user can read the rate card. Changing it needs an admin
-account AND the separate rate-card edit password, which is checked on every
-save (the "unlock" call only lets the page know the password is right).
+Any user with the eee_taxi permission (or an admin) can read the rate card.
+Changing it needs the separate rate-card edit password, which is checked on
+every save (the "unlock" call only lets the page know the password is right).
 """
 from __future__ import annotations
 
@@ -14,9 +14,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User
 from app.services.auth import (
-    get_current_active_user,
     get_password_hash,
-    require_admin,
+    require_permission,
     verify_password,
 )
 from app.services.eee_taxi_rates import (
@@ -32,6 +31,10 @@ from app.services.eee_taxi_rates import (
 router = APIRouter(prefix="/api/eee-taxi/rates", tags=["eee-taxi"])
 
 _MIN_PASSWORD = 6
+
+# Viewing and editing are open to every EEE-Taxi user; edits are gated by the
+# shared rate card edit password rather than by the admin role.
+_eee_user = require_permission("eee_taxi")
 
 
 class UnlockIn(BaseModel):
@@ -59,50 +62,50 @@ def _response(db: Session) -> dict:
     }
 
 
-def _check_edit_password(db: Session, password: str, admin: User) -> None:
+def _check_edit_password(db: Session, password: str, user: User) -> None:
     stored = get_edit_password_hash(db)
     if not stored:
         raise HTTPException(status.HTTP_409_CONFLICT, "Set a rate card edit password first.")
     if not verify_password(password, stored):
-        logger.warning("Wrong rate card edit password entered by {}", admin.email)
+        logger.warning("Wrong rate card edit password entered by {}", user.email)
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Wrong rate card edit password.")
 
 
 @router.get("")
 def read_rates(
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(_eee_user),
     db: Session = Depends(get_db),
 ) -> dict:
     return _response(db)
 
 
 @router.post("/unlock")
-def unlock(body: UnlockIn, admin: User = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
-    _check_edit_password(db, body.password, admin)
+def unlock(body: UnlockIn, user: User = Depends(_eee_user), db: Session = Depends(get_db)) -> dict:
+    _check_edit_password(db, body.password, user)
     return {"ok": True}
 
 
 @router.post("/password")
-def set_password(body: PasswordIn, admin: User = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+def set_password(body: PasswordIn, user: User = Depends(_eee_user), db: Session = Depends(get_db)) -> dict:
     """Set the edit password the first time, or change it (needs the current one)."""
     if get_edit_password_hash(db):
-        _check_edit_password(db, body.current_password, admin)
+        _check_edit_password(db, body.current_password, user)
     set_edit_password_hash(db, get_password_hash(body.new_password))
-    logger.info("Rate card edit password set by {}", admin.email)
+    logger.info("Rate card edit password set by {}", user.email)
     return {"ok": True}
 
 
 @router.put("")
 def update_rates(
     body: RateCardUpdateIn,
-    admin: User = Depends(require_admin),
+    user: User = Depends(_eee_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    _check_edit_password(db, body.edit_password, admin)
+    _check_edit_password(db, body.edit_password, user)
     before = rate_card_to_dict(get_rate_card_state(db).card)
     card = body.rates.to_rate_card()
-    save_rate_card(db, card, updated_by=admin.email)
+    save_rate_card(db, card, updated_by=user.email)
     after = rate_card_to_dict(card)
     changed = sorted(k for k in after if before.get(k) != after[k])
-    logger.info("EEE-Taxi rate card updated by {}; changed: {}", admin.email, changed or "nothing")
+    logger.info("EEE-Taxi rate card updated by {}; changed: {}", user.email, changed or "nothing")
     return _response(db)

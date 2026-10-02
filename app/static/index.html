@@ -848,7 +848,7 @@
         <button class="btn" style="width:100%;margin-top:16px;" onclick="eetUploadAndCalculate()">
           Upload &amp; Calculate
         </button>
-        <div id="eetPhase1Error" style="margin-top:10px;font-size:12px;color:#ef4444;"></div>
+        <div id="eetPhase1Error" style="margin-top:10px;font-size:12px;color:#ef4444;white-space:pre-line;"></div>
       </div>
 
       <!-- Phase 2: Review + Settings (hidden until CSV uploaded) -->
@@ -1172,7 +1172,7 @@
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const today = () => new Date().toISOString().split("T")[0];
-const ALL_MODULES = ["billing", "tracking", "accounts", "others", "api_dashboard"];
+const ALL_MODULES = ["billing", "tracking", "accounts", "others", "api_dashboard", "eee_taxi"];
 
 async function loadAuthImage(imgEl, url) {
   try {
@@ -1379,8 +1379,15 @@ function canAccess(tab) {
   return (currentUser.permissions || []).includes(tab.module);
 }
 
+function canAccessEee() {
+  if (!currentUser) return false;
+  return isAdmin() || (currentUser.permissions || []).includes("eee_taxi");
+}
+
 function visibleTabs() {
-  return TAB_DEFS.filter(canAccess).map(t => t.id);
+  const tabs = TAB_DEFS.filter(canAccess).map(t => t.id);
+  if (canAccessEee()) tabs.push("eee-billing");
+  return tabs;
 }
 
 function buildSidebar() {
@@ -1394,10 +1401,12 @@ function buildSidebar() {
   nav.innerHTML = "";
 
   // Main section
-  const mainLabel = document.createElement("div");
-  mainLabel.className = "sb-section-label";
-  mainLabel.textContent = "Main";
-  nav.appendChild(mainLabel);
+  if (TAB_DEFS.some(canAccess)) {
+    const mainLabel = document.createElement("div");
+    mainLabel.className = "sb-section-label";
+    mainLabel.textContent = "Main";
+    nav.appendChild(mainLabel);
+  }
 
   TAB_DEFS.forEach(tab => {
     if (!canAccess(tab)) return;
@@ -1410,6 +1419,7 @@ function buildSidebar() {
   });
 
   // EEE-Taxi collapsible group
+  if (!canAccessEee()) return;
   const eeeLabel = document.createElement("div");
   eeeLabel.className = "sb-section-label";
   eeeLabel.textContent = "EEE-Taxi";
@@ -2649,7 +2659,7 @@ function eetUploadAndCalculate() {
   const fd = new FormData();
   fd.append("csv_file", fileInput.files[0]);
 
-  fetch("/api/eee-taxi/calculate", { method: "POST", body: fd })
+  fetch("/api/eee-taxi/calculate", { method: "POST", body: fd, headers: authHeaders() })
     .then(res => {
       btn.disabled    = false;
       btn.textContent = "Upload & Calculate";
@@ -2720,7 +2730,7 @@ function eetProceed() {
   }
   fd.append("use_card_fare_rows", eetChosenCardFareRows());
 
-  fetch("/api/eee-taxi/batch", { method: "POST", body: fd })
+  fetch("/api/eee-taxi/batch", { method: "POST", body: fd, headers: authHeaders() })
     .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Error")))
     .then(d => {
       _eetBatchId = d.batch_id;
@@ -2738,7 +2748,7 @@ function eetProceed() {
 
 function eetPollBatch() {
   if (!_eetBatchId) return;
-  fetch("/api/eee-taxi/batch/" + _eetBatchId)
+  fetch("/api/eee-taxi/batch/" + _eetBatchId, { headers: authHeaders() })
     .then(r => r.ok ? r.json() : null)
     .then(d => {
       if (!d) return;
@@ -2817,15 +2827,40 @@ function eetRenderInvoices(invoices) {
   });
 }
 
-function eetDownloadOne(invoiceId) {
-  if (!_eetBatchId) return;
-  window.location.href = "/api/eee-taxi/batch/" + _eetBatchId +
-    "/invoice/" + invoiceId + "/download";
+function authHeaders() {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
 }
 
-function eetDownloadAll()    { if (_eetBatchId) window.location.href = "/api/eee-taxi/batch/" + _eetBatchId + "/download-all"; }
-function eetDownloadP2p()    { if (_eetBatchId) window.location.href = "/api/eee-taxi/batch/" + _eetBatchId + "/download-p2p"; }
-function eetDownloadRental() { if (_eetBatchId) window.location.href = "/api/eee-taxi/batch/" + _eetBatchId + "/download-rental"; }
+// Downloads go through fetch so the login token is sent; a plain link can't carry it.
+async function downloadWithAuth(url, fallbackName) {
+  try {
+    const res = await fetch(url, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Download failed (${res.status}).`);
+    }
+    const match = /filename="?([^";]+)"?/i.exec(res.headers.get("content-disposition") || "");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(await res.blob());
+    link.download = match ? match[1] : fallbackName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function eetDownloadOne(invoiceId) {
+  if (!_eetBatchId) return;
+  downloadWithAuth("/api/eee-taxi/batch/" + _eetBatchId + "/invoice/" + invoiceId + "/download", "invoice.pdf");
+}
+
+function eetDownloadAll()    { if (_eetBatchId) downloadWithAuth("/api/eee-taxi/batch/" + _eetBatchId + "/download-all", "eee_taxi_all.zip"); }
+function eetDownloadP2p()    { if (_eetBatchId) downloadWithAuth("/api/eee-taxi/batch/" + _eetBatchId + "/download-p2p", "eee_taxi_p2p.zip"); }
+function eetDownloadRental() { if (_eetBatchId) downloadWithAuth("/api/eee-taxi/batch/" + _eetBatchId + "/download-rental", "eee_taxi_rental.zip"); }
 
 // Set today as default invoice date on tab load
 (function() {
@@ -2892,9 +2927,9 @@ function rcFill(rates) {
 }
 
 function rcApplyMode() {
-  const admin = isAdmin(), editing = _rc.editing;
-  $("#rcReadOnly").classList.toggle("hidden", admin);
-  $("#rcLockedActions").classList.toggle("hidden", !admin || editing);
+  const editing = _rc.editing;
+  $("#rcReadOnly").classList.add("hidden");
+  $("#rcLockedActions").classList.toggle("hidden", editing);
   $("#rcEditActions").classList.toggle("hidden", !editing);
   $("#rcEditBanner").classList.toggle("hidden", !editing);
   $$("#pane-eee-rates input").forEach(inp => { inp.disabled = !editing; });
@@ -3144,7 +3179,7 @@ async function eetRunFareCheck(file) {
     _eetFareIssues = data.issues;
     eetRenderFareCheck(data);
   } catch (e) {
-    box.innerHTML = `<div class="extraction-note err">Fare check failed: ${rcEsc(e.message)}</div>`;
+    box.innerHTML = `<div class="extraction-note err" style="white-space:pre-line;display:block;">Fare check failed: ${rcEsc(e.message)}</div>`;
   }
 }
 

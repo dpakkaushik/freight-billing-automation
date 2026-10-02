@@ -18,15 +18,24 @@ class Base(DeclarativeBase):
     """Base class for all ORM models."""
 
 
-# `check_same_thread=False` is required because FastAPI background tasks
-# and the async worker access the connection from different threads.
-_connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+_db_url = settings.sqlalchemy_database_url
+
+if _db_url.startswith("sqlite"):
+    # `check_same_thread=False` is required because FastAPI background tasks
+    # and the async worker access the connection from different threads.
+    _connect_args = {"check_same_thread": False}
+else:
+    # Supabase's transaction pooler (port 6543) hands each transaction a
+    # different backend, so server-side prepared statements must be off.
+    _connect_args = {"prepare_threshold": None}
 
 engine = create_engine(
-    settings.database_url,
+    _db_url,
     echo=False,
     future=True,
     connect_args=_connect_args,
+    # Pooled Supabase connections can be dropped while idle; test before use.
+    pool_pre_ping=not _db_url.startswith("sqlite"),
 )
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)

@@ -91,7 +91,7 @@ class SuggestedSuffixOut(BaseModel):
     suggested: str
 
 
-ALL_MODULES = ["billing", "tracking", "accounts", "others", "api_dashboard"]
+ALL_MODULES = ["billing", "tracking", "accounts", "others", "api_dashboard", "eee_taxi"]
 
 
 class UserCreateIn(BaseModel):

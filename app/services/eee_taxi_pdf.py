@@ -35,6 +35,8 @@ _BANK_BR   = "MILLENIUM TOWER, GURGAON -122002"
 _HSN       = "996601"
 
 LOGO_PATH = Path(__file__).parent.parent / "static" / "assets" / "eee_taxi_logo.png"
+LOGO_W     = 24*mm   # logo width in the invoice header
+LOGO_COL_W = 26*mm   # logo column; company address sits to its right
 
 _FONT_NORMAL = "Helvetica"
 _FONT_BOLD   = "Helvetica-Bold"
@@ -154,11 +156,12 @@ def generate_eee_taxi_invoice_pdf(
     logo_img = None
     if LOGO_PATH.exists():
         try:
-            logo_img = Image(str(LOGO_PATH), width=18*mm, height=14*mm)
+            # Logo artwork is 621x516 px; keep its aspect ratio
+            logo_img = Image(str(LOGO_PATH), width=LOGO_W, height=LOGO_W * 516 / 621)
         except Exception:
-            pass
+            logger.exception("Invoice logo could not be loaded from {}", LOGO_PATH)
 
-    co_w = inner_lw - (20*mm if logo_img else 0)
+    co_w = inner_lw - (LOGO_COL_W if logo_img else 0)
     co_lines = [
         [_p(f"<b>{_CO_NAME}</b>", st["co"])],
         [_p(_CO_ADDR1, st["xs"])],
@@ -176,8 +179,11 @@ def generate_eee_taxi_invoice_pdf(
     ]))
 
     if logo_img:
-        co_section = Table([[logo_img, co_tbl]], colWidths=[20*mm, co_w])
-        co_section.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP")]))
+        co_section = Table([[logo_img, co_tbl]], colWidths=[LOGO_COL_W, co_w])
+        co_section.setStyle(TableStyle([
+            ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+            ("LEFTPADDING",(0,0),(0,0),0), ("RIGHTPADDING",(0,0),(0,0),2),
+        ]))
     else:
         co_section = co_tbl
 
