@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from loguru import logger
 
 from app.config import settings
@@ -17,7 +17,15 @@ from app.services.auth import require_permission
 from app.models import EeeTaxiBatch, EeeTaxiBatchStatus, EeeTaxiInvoice, EeeTaxiInvoiceStatus
 from app.services.eee_taxi_csv import parse_eee_taxi_csv
 from app.services.eee_taxi_fare_check import STATUS_OK, apply_card_fares, check_p2p_fares
-from app.services.eee_taxi_pipeline import build_zip, run_batch
+from app.services.eee_taxi_pipeline import (
+    build_zip,
+    finalize_batch_status,
+    has_signed_pdf,
+    run_batch,
+    signed_filename,
+    signed_pdf_bytes,
+    unsigned_pdf_bytes,
+)
 from app.services.eee_taxi_rates import get_rate_card
 from app.services.eee_taxi_rental_calc import (
     apply_fare_overrides,
@@ -111,12 +119,15 @@ async def start_batch(
     csv_file: UploadFile,
     invoice_date: str = Form(...),
     start_suffix: int = Form(...),
-    pin: str = Form(""),
     sign_mode: str = Form("usb"),
     calc_csv: Optional[UploadFile] = File(None),
     use_card_fare_rows: str = Form(""),
 ):
-    """Upload trip CSV (and optional modified calculated CSV) and start batch generation."""
+    """Upload trip CSV (and optional modified calculated CSV) and start batch generation.
+
+    USB signing happens in the browser through the local signing helper, so
+    the DSC PIN is never sent to this server.
+    """
     csv_bytes = await csv_file.read()
     with SessionLocal() as db:
         rates = get_rate_card(db)   # one snapshot for the whole batch
@@ -131,9 +142,6 @@ async def start_batch(
 
     if sign_mode not in ("usb", "dummy"):
         raise HTTPException(status_code=400, detail=f"Invalid sign_mode: {sign_mode!r}.")
-
-    if sign_mode == "usb" and not pin:
-        raise HTTPException(status_code=400, detail="PIN is required for USB DSC signing.")
 
     try:
         inv_date = date.fromisoformat(invoice_date)
@@ -169,6 +177,7 @@ async def start_batch(
             start_suffix=start_suffix,
             total_rows=len(rows),
             csv_filename=csv_file.filename,
+            sign_mode=sign_mode,
         )
         db.add(batch)
         db.flush()
@@ -195,7 +204,6 @@ async def start_batch(
                 rows=rows,
                 invoice_date=inv_date,
                 start_suffix=start_suffix,
-                pin=pin,
                 output_dir=output_dir,
                 db=db_thread,
                 rates=rates,
@@ -228,17 +236,20 @@ def get_batch(batch_id: str):
             .all()
         )
 
-        done   = sum(1 for i in invoices if i.status == EeeTaxiInvoiceStatus.DONE)
-        failed = sum(1 for i in invoices if i.status == EeeTaxiInvoiceStatus.FAILED)
+        done     = sum(1 for i in invoices if i.status == EeeTaxiInvoiceStatus.DONE)
+        failed   = sum(1 for i in invoices if i.status == EeeTaxiInvoiceStatus.FAILED)
+        awaiting = sum(1 for i in invoices if i.status == EeeTaxiInvoiceStatus.AWAITING_SIGNATURE)
         p2p_done    = sum(1 for i in invoices if i.status == EeeTaxiInvoiceStatus.DONE and i.booking_type == "p2p")
         rental_done = sum(1 for i in invoices if i.status == EeeTaxiInvoiceStatus.DONE and i.booking_type == "rental")
 
         return {
             "batch_id":    batch_id,
             "status":      batch.status,
+            "sign_mode":   batch.sign_mode or "usb",
             "total_rows":  batch.total_rows,
             "done":        done,
             "failed":      failed,
+            "awaiting":    awaiting,
             "p2p_done":    p2p_done,
             "rental_done": rental_done,
             "invoices": [
@@ -251,13 +262,95 @@ def get_batch(batch_id: str):
                     "booking_type":   inv.booking_type,
                     "status":         inv.status,
                     "error_message":  inv.error_message,
-                    "has_signed_pdf": bool(
-                        inv.signed_pdf_path and Path(inv.signed_pdf_path).exists()
-                    ),
+                    "sig_box":        inv.sig_box,
+                    "has_signed_pdf": has_signed_pdf(inv),
                 }
                 for inv in invoices
             ],
         }
+
+
+# ── Browser-side USB signing ──────────────────────────────────────────────────
+#
+# The browser fetches the unsigned PDF, posts it to PalliaSignHelper.exe on
+# the user's PC (http://127.0.0.1:7777/sign) together with the PIN and the
+# signature box, then uploads the signed PDF here.
+
+def _get_batch_invoice(db, batch_id: str, invoice_id: str) -> EeeTaxiInvoice:
+    inv = db.get(EeeTaxiInvoice, invoice_id)
+    if inv is None or inv.batch_id != batch_id:
+        raise HTTPException(status_code=404, detail="Invoice not found.")
+    return inv
+
+
+@router.get("/batch/{batch_id}/invoice/{invoice_id}/unsigned")
+def get_unsigned_invoice(batch_id: str, invoice_id: str):
+    """Unsigned PDF for the local signing helper (USB mode only)."""
+    with SessionLocal() as db:
+        inv = _get_batch_invoice(db, batch_id, invoice_id)
+        if inv.status != EeeTaxiInvoiceStatus.AWAITING_SIGNATURE:
+            raise HTTPException(status_code=409, detail=f"Invoice is not awaiting signature (status: {inv.status}).")
+        data = unsigned_pdf_bytes(inv)
+        if not data:
+            raise HTTPException(status_code=404, detail="Unsigned PDF is missing.")
+        name = Path(inv.pdf_path).name if inv.pdf_path else f"{invoice_id}.pdf"
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{name}"'},
+    )
+
+
+@router.post("/batch/{batch_id}/invoice/{invoice_id}/signed")
+async def upload_signed_invoice(batch_id: str, invoice_id: str, file: UploadFile):
+    """Store the PDF signed by the local helper and mark the invoice done."""
+    data = await file.read()
+    if not data.startswith(b"%PDF"):
+        raise HTTPException(status_code=400, detail="Uploaded file is not a PDF.")
+
+    with SessionLocal() as db:
+        inv = _get_batch_invoice(db, batch_id, invoice_id)
+        if inv.status == EeeTaxiInvoiceStatus.DONE:
+            raise HTTPException(status_code=409, detail="Invoice is already signed.")
+        if inv.status != EeeTaxiInvoiceStatus.AWAITING_SIGNATURE:
+            raise HTTPException(status_code=409, detail=f"Invoice is not awaiting signature (status: {inv.status}).")
+
+        inv.signed_pdf_data = data
+        # The unsigned copy has served its purpose and is never handed out
+        # again; dropping it halves what this invoice costs in the database.
+        inv.pdf_data = None
+        if inv.pdf_path:
+            signed_path = Path(inv.pdf_path).with_name(f"{Path(inv.pdf_path).stem}_signed.pdf")
+            inv.signed_pdf_path = str(signed_path)
+            try:   # best effort; the DB copy is authoritative
+                signed_path.parent.mkdir(parents=True, exist_ok=True)
+                signed_path.write_bytes(data)
+            except OSError as exc:
+                logger.warning("Could not write signed PDF to disk ({}); DB copy kept.", exc)
+        inv.status        = EeeTaxiInvoiceStatus.DONE
+        inv.error_message = None
+        db.commit()
+
+        batch = db.get(EeeTaxiBatch, batch_id)
+        status = finalize_batch_status(batch, db) if batch else None
+        logger.info("Batch {}: invoice {} signed via local helper; batch status={}", batch_id, inv.invoice_no, status)
+        return {"id": inv.id, "status": inv.status, "batch_status": status}
+
+
+@router.post("/batch/{batch_id}/invoice/{invoice_id}/sign-failed")
+def report_sign_failure(batch_id: str, invoice_id: str, error: str = Form(...)):
+    """Record a per-invoice signing failure reported by the browser."""
+    with SessionLocal() as db:
+        inv = _get_batch_invoice(db, batch_id, invoice_id)
+        if inv.status != EeeTaxiInvoiceStatus.AWAITING_SIGNATURE:
+            raise HTTPException(status_code=409, detail=f"Invoice is not awaiting signature (status: {inv.status}).")
+        inv.status        = EeeTaxiInvoiceStatus.FAILED
+        inv.error_message = error[:1000]
+        db.commit()
+        batch = db.get(EeeTaxiBatch, batch_id)
+        status = finalize_batch_status(batch, db) if batch else None
+        logger.warning("Batch {}: invoice {} signing failed in browser: {}", batch_id, inv.invoice_no, error)
+        return {"id": inv.id, "status": inv.status, "batch_status": status}
 
 
 # ── Download single invoice ───────────────────────────────────────────────────
@@ -265,18 +358,27 @@ def get_batch(batch_id: str):
 @router.get("/batch/{batch_id}/invoice/{invoice_id}/download")
 def download_invoice(batch_id: str, invoice_id: str):
     with SessionLocal() as db:
-        inv = db.get(EeeTaxiInvoice, invoice_id)
-        if inv is None or inv.batch_id != batch_id:
-            raise HTTPException(status_code=404, detail="Invoice not found.")
-        if inv.status != EeeTaxiInvoiceStatus.DONE or not inv.signed_pdf_path:
+        inv = _get_batch_invoice(db, batch_id, invoice_id)
+        if inv.status != EeeTaxiInvoiceStatus.DONE:
             raise HTTPException(status_code=409, detail="Signed PDF not yet available.")
-        p = Path(inv.signed_pdf_path)
-        if not p.exists():
-            raise HTTPException(status_code=404, detail="Signed PDF file missing on disk.")
-        return FileResponse(str(p), media_type="application/pdf", filename=p.name)
+        data = signed_pdf_bytes(inv)
+        if not data:
+            raise HTTPException(status_code=404, detail="Signed PDF is missing.")
+        name = signed_filename(inv)
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
 
 
 # ── Download ZIPs ─────────────────────────────────────────────────────────────
+
+_DOWNLOADABLE = (
+    EeeTaxiBatchStatus.COMPLETED,
+    EeeTaxiBatchStatus.PARTIAL,
+    EeeTaxiBatchStatus.AWAITING_SIGNATURE,   # ZIP holds whatever is signed so far
+)
 
 @router.get("/batch/{batch_id}/download-all")
 def download_all(batch_id: str):
@@ -285,7 +387,7 @@ def download_all(batch_id: str):
         batch = db.get(EeeTaxiBatch, batch_id)
         if batch is None:
             raise HTTPException(status_code=404, detail="Batch not found.")
-        if batch.status not in (EeeTaxiBatchStatus.COMPLETED, EeeTaxiBatchStatus.PARTIAL):
+        if batch.status not in _DOWNLOADABLE:
             raise HTTPException(status_code=409, detail="Batch not yet completed.")
         zip_bytes = build_zip(batch_id, db)
 
@@ -304,7 +406,7 @@ def download_p2p(batch_id: str):
         batch = db.get(EeeTaxiBatch, batch_id)
         if batch is None:
             raise HTTPException(status_code=404, detail="Batch not found.")
-        if batch.status not in (EeeTaxiBatchStatus.COMPLETED, EeeTaxiBatchStatus.PARTIAL):
+        if batch.status not in _DOWNLOADABLE:
             raise HTTPException(status_code=409, detail="Batch not yet completed.")
         zip_bytes = build_zip(batch_id, db, booking_type="p2p")
 
@@ -323,7 +425,7 @@ def download_rental(batch_id: str):
         batch = db.get(EeeTaxiBatch, batch_id)
         if batch is None:
             raise HTTPException(status_code=404, detail="Batch not found.")
-        if batch.status not in (EeeTaxiBatchStatus.COMPLETED, EeeTaxiBatchStatus.PARTIAL):
+        if batch.status not in _DOWNLOADABLE:
             raise HTTPException(status_code=409, detail="Batch not yet completed.")
         zip_bytes = build_zip(batch_id, db, booking_type="rental")
 

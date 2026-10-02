@@ -52,7 +52,7 @@ def init_db() -> None:
 
 def _migrate_existing_db() -> None:
     """Add columns introduced after initial deploy without dropping existing data."""
-    from sqlalchemy import inspect, text
+    from sqlalchemy import JSON, LargeBinary, inspect, text
 
     with engine.connect() as conn:
         inspector = inspect(conn)
@@ -67,6 +67,23 @@ def _migrate_existing_db() -> None:
             existing = {c["name"] for c in inspector.get_columns("eee_taxi_rate_card")}
             if "edit_password_hash" not in existing:
                 conn.execute(text("ALTER TABLE eee_taxi_rate_card ADD COLUMN edit_password_hash VARCHAR(255)"))
+            conn.commit()
+        # Browser-side USB signing (Vercel): PDF bytes + signature box stored in DB.
+        binary_type = LargeBinary().compile(dialect=engine.dialect)
+        json_type = JSON().compile(dialect=engine.dialect)
+        if "eee_taxi_batches" in inspector.get_table_names():
+            existing = {c["name"] for c in inspector.get_columns("eee_taxi_batches")}
+            if "sign_mode" not in existing:
+                conn.execute(text("ALTER TABLE eee_taxi_batches ADD COLUMN sign_mode VARCHAR(16)"))
+            conn.commit()
+        if "eee_taxi_invoices" in inspector.get_table_names():
+            existing = {c["name"] for c in inspector.get_columns("eee_taxi_invoices")}
+            if "pdf_data" not in existing:
+                conn.execute(text(f"ALTER TABLE eee_taxi_invoices ADD COLUMN pdf_data {binary_type}"))
+            if "signed_pdf_data" not in existing:
+                conn.execute(text(f"ALTER TABLE eee_taxi_invoices ADD COLUMN signed_pdf_data {binary_type}"))
+            if "sig_box" not in existing:
+                conn.execute(text(f"ALTER TABLE eee_taxi_invoices ADD COLUMN sig_box {json_type}"))
             conn.commit()
         # external_api_events is created by create_all; no ALTER TABLE needed
 

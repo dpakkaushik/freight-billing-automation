@@ -18,7 +18,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Integer, LargeBinary, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -208,6 +208,9 @@ class LR(Base):
 class EeeTaxiBatchStatus(str, enum.Enum):
     PENDING    = "pending"
     PROCESSING = "processing"
+    # PDFs generated; waiting for the browser + local signing helper to sign
+    # them with the USB token (USB mode only).
+    AWAITING_SIGNATURE = "awaiting_signature"
     COMPLETED  = "completed"
     PARTIAL    = "partial"    # some rows failed, some succeeded
     FAILED     = "failed"
@@ -216,6 +219,7 @@ class EeeTaxiBatchStatus(str, enum.Enum):
 class EeeTaxiInvoiceStatus(str, enum.Enum):
     PENDING    = "pending"
     GENERATING = "generating"
+    AWAITING_SIGNATURE = "awaiting_signature"   # unsigned PDF ready for the helper
     DONE       = "done"
     FAILED     = "failed"
 
@@ -225,7 +229,7 @@ class EeeTaxiBatch(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
     status: Mapped[EeeTaxiBatchStatus] = mapped_column(
-        Enum(EeeTaxiBatchStatus, native_enum=False, length=16),
+        Enum(EeeTaxiBatchStatus, native_enum=False, length=24),
         default=EeeTaxiBatchStatus.PENDING,
         index=True,
     )
@@ -233,6 +237,7 @@ class EeeTaxiBatch(Base):
     start_suffix: Mapped[int] = mapped_column(Integer)
     total_rows: Mapped[int] = mapped_column(Integer, default=0)
     csv_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sign_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)   # "usb" | "dummy"
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     invoices: Mapped[list["EeeTaxiInvoice"]] = relationship(
@@ -260,12 +265,19 @@ class EeeTaxiInvoice(Base):
     booking_type: Mapped[str | None] = mapped_column(String(16), nullable=True)  # "p2p" | "rental"
 
     status: Mapped[EeeTaxiInvoiceStatus] = mapped_column(
-        Enum(EeeTaxiInvoiceStatus, native_enum=False, length=16),
+        Enum(EeeTaxiInvoiceStatus, native_enum=False, length=24),
         default=EeeTaxiInvoiceStatus.PENDING,
         index=True,
     )
     pdf_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     signed_pdf_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # PDF bytes live in the database so they survive serverless instances
+    # (Vercel's disk is per-instance and ephemeral). Disk paths are a fallback.
+    pdf_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    signed_pdf_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    # Signature box (x1, y1, x2, y2) in PDF points, captured at generation time
+    # and handed to the local signing helper so the stamp lands in the footer.
+    sig_box: Mapped[list | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 

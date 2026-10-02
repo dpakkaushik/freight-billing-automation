@@ -1,7 +1,11 @@
 """PDF digital signing via USB DSC token — standalone helper module.
 
 Adapted from app/services/pdf_signer.py for use in the local signing helper.
-Entry point: sign_pdf_bytes(pdf_bytes, pin) -> signed_bytes
+Entry point: sign_pdf_bytes(pdf_bytes, pin, sig_box=None) -> signed_bytes
+
+``sig_box`` lets the web app dictate where the visible signature goes
+(EEE-Taxi invoices capture it at generation time). Without it the helper
+looks for the Pallia Trans "For Pallia / Authorised Signatory" footer text.
 """
 from __future__ import annotations
 
@@ -175,8 +179,16 @@ def _extract_cn(cert) -> str:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def sign_pdf_bytes(pdf_bytes: bytes, pin: str) -> bytes:
+def sign_pdf_bytes(
+    pdf_bytes: bytes,
+    pin: str,
+    sig_box: tuple[float, float, float, float] | list[float] | None = None,
+) -> bytes:
     """Sign PDF bytes using the USB DSC token. Returns signed PDF bytes.
+
+    Args:
+        sig_box: optional (x1, y1, x2, y2) in PDF points for the visible stamp.
+                 When omitted the footer text is searched for.
 
     Raises:
         TokenNotFound: USB token not connected.
@@ -207,7 +219,7 @@ def sign_pdf_bytes(pdf_bytes: bytes, pin: str) -> bytes:
         except Exception as exc:
             err = str(exc)
             if any(k in err for k in ("CKR_TOKEN_NOT_PRESENT", "CKR_SLOT_ID_INVALID",
-                                       "No module", "CKR_GENERAL_ERROR")):
+                                       "No module", "CKR_GENERAL_ERROR", "cannot load")):
                 raise TokenNotFound("USB token not found. Please plug in the DSC pendrive.") from exc
             if any(k in err for k in ("CKR_PIN_INCORRECT", "CKR_PIN_LOCKED")):
                 raise WrongPIN("Incorrect PIN. Please try again.") from exc
@@ -238,7 +250,11 @@ def sign_pdf_bytes(pdf_bytes: bytes, pin: str) -> bytes:
                     border_width=0,
                     background_opacity=1.0,
                 )
-                sig_box = _find_signature_box(tmp_path)
+                if sig_box is not None and len(sig_box) == 4:
+                    sig_box = tuple(float(v) for v in sig_box)
+                    logger.info("Using signature box from request: {}", sig_box)
+                else:
+                    sig_box = _find_signature_box(tmp_path)
 
                 pdf_signer_obj = PdfSigner(
                     signature_meta=signers.PdfSignatureMetadata(field_name="AuthorisedSignatory"),

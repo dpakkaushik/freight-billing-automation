@@ -8,10 +8,14 @@ Right-click the tray icon to Stop.
 from __future__ import annotations
 
 import base64
+import os
 import sys
 import threading
+from pathlib import Path
+from typing import Optional
 
 import uvicorn
+from loguru import logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -20,6 +24,29 @@ from pydantic import BaseModel
 from signer import SigningError, TokenNotFound, WrongPIN, sign_pdf_bytes
 
 PORT = 7777
+VERSION = "1.1.0"   # 1.1: accepts sig_box (EEE-Taxi browser-side signing)
+
+# The .exe runs without a console, so problems go to a log file next to the
+# user's local app data: %LOCALAPPDATA%\PalliaSignHelper\helper.log
+LOG_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "PalliaSignHelper"
+
+
+def _setup_logging() -> None:
+    # PyInstaller --noconsole leaves sys.stdout / sys.stderr as None, which
+    # breaks anything that calls .isatty() or .write() on them (uvicorn's
+    # default log formatter does). Point them at /dev/null instead.
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name) is None:
+            try:
+                setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
+            except Exception:
+                pass
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        logger.add(LOG_DIR / "helper.log", rotation="2 MB", retention=3, level="INFO",
+                   enqueue=True, backtrace=False, diagnose=False)
+    except Exception:
+        pass    # logging must never stop the helper from starting
 
 app = FastAPI(title="Pallia Trans Signing Helper", docs_url=None, redoc_url=None)
 
@@ -36,6 +63,9 @@ app.add_middleware(
 class SignRequest(BaseModel):
     pdf_b64: str
     pin: str
+    # Optional (x1, y1, x2, y2) in PDF points; EEE-Taxi sends this so the
+    # stamp lands in its invoice footer instead of being auto-detected.
+    sig_box: Optional[list[float]] = None
 
 
 class SignResponse(BaseModel):
@@ -46,7 +76,13 @@ class SignResponse(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "Pallia Trans Signing Helper", "port": PORT}
+    return {
+        "status": "ok",
+        "service": "Pallia Trans Signing Helper",
+        "port": PORT,
+        "version": VERSION,
+        "supports_sig_box": True,
+    }
 
 
 @app.post("/sign", response_model=SignResponse)
@@ -57,7 +93,7 @@ def sign(body: SignRequest):
         return JSONResponse(status_code=400, content={"detail": "Invalid base64 PDF data."})
 
     try:
-        signed_bytes = sign_pdf_bytes(pdf_bytes, body.pin)
+        signed_bytes = sign_pdf_bytes(pdf_bytes, body.pin, sig_box=body.sig_box)
     except TokenNotFound as exc:
         return JSONResponse(status_code=503, content={"detail": str(exc)})
     except WrongPIN as exc:
@@ -118,13 +154,21 @@ def _make_icon_image():
 
 
 def _run_server() -> None:
-    uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning")
+    try:
+        logger.info("Signing helper v{} listening on http://127.0.0.1:{}", VERSION, PORT)
+        # log_config=None: skip uvicorn's dictConfig, which needs a console.
+        uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning", log_config=None)
+    except Exception:
+        # A silent dead server thread is the worst failure mode for a tray app.
+        logger.exception("HTTP server failed to start (is port {} already in use?)", PORT)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import pystray
+
+    _setup_logging()
 
     # Register in Windows startup (idempotent)
     _register_startup()

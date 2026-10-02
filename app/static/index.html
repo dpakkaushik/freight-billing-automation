@@ -915,6 +915,10 @@
               <label class="field">DSC PIN (mToken)</label>
               <input type="password" id="eetPin" autocomplete="off" style="width:100%;"
                      placeholder="Entered once for all invoices" />
+              <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">
+                Signed on this PC by <b>PalliaSignHelper.exe</b> (system tray). The PIN goes only
+                to the helper, never to the server.
+              </div>
             </div>
 
             <button class="btn" style="width:100%;margin-top:18px;" onclick="eetProceed()">
@@ -927,6 +931,9 @@
 
             <div id="eetBatchMeta" style="display:none;margin-top:14px;font-size:12px;
                  color:var(--text-dim);line-height:1.6;"></div>
+            <div id="eetSignNote" style="display:none;margin-top:10px;font-size:12px;
+                 line-height:1.5;padding:8px 10px;border-radius:6px;
+                 background:var(--surface2);"></div>
           </div>
 
           <!-- Right: live status panel -->
@@ -2619,6 +2626,7 @@ function eetTogglePinField() {
 
 function eetReset() {
   clearInterval(_eetPollTimer);
+  eetResetSignState();
   _eetBatchId      = null;
   _eetCsvFile      = null;
   _eetCalcCsvBlob  = null;
@@ -2697,7 +2705,7 @@ function eetUploadAndCalculate() {
     });
 }
 
-function eetProceed() {
+async function eetProceed() {
   if (!_eetCsvFile) { alert("Please go back and upload a CSV first."); return; }
 
   const reviewInput = document.getElementById("eetModifiedCsvFile");
@@ -2710,8 +2718,14 @@ function eetProceed() {
   if (!suffix || +suffix < 1) { alert("Please enter a valid starting suffix."); return; }
   if (signMode === "usb" && !pin) { alert("Please enter the DSC PIN for USB signing."); return; }
 
+  // USB signing runs in this browser through the local helper, so make sure
+  // it is reachable before the server starts generating anything.
+  if (signMode === "usb" && !(await eetCheckHelper())) return;
+
   clearInterval(_eetPollTimer);
   _eetBatchId = null;
+  eetResetSignState();
+  _eetPin = signMode === "usb" ? pin : "";
   document.getElementById("eetInvoiceList").innerHTML = "";
   ["eetDownloadAllBtn","eetDownloadP2pBtn","eetDownloadRentalBtn"].forEach(id => {
     document.getElementById(id).style.display = "none";
@@ -2724,7 +2738,6 @@ function eetProceed() {
   fd.append("invoice_date", invDate);
   fd.append("start_suffix", suffix);
   fd.append("sign_mode",    signMode);
-  fd.append("pin",          pin);
   if (reviewInput && reviewInput.files.length) {
     fd.append("calc_csv", reviewInput.files[0]);
   }
@@ -2752,8 +2765,10 @@ function eetPollBatch() {
     .then(r => r.ok ? r.json() : null)
     .then(d => {
       if (!d) return;
+      _eetLastInvoices = d.invoices || [];
       eetRenderSummary(d);
       eetRenderInvoices(d.invoices);
+      if (d.sign_mode === "usb") eetSignLoop(d.invoices);
       const finished = ["completed","partial","failed"].includes(d.status);
       if (finished) {
         clearInterval(_eetPollTimer);
@@ -2769,19 +2784,23 @@ function eetPollBatch() {
 
 function eetRenderSummary(d) {
   const label = { pending:"Pending", processing:"Processing...",
+    awaiting_signature:"Signing with USB token...",
     completed:"Completed", partial:"Partially done", failed:"Failed" };
+  const awaiting = d.awaiting ? ", " + d.awaiting + " to sign" : "";
   document.getElementById("eetBatchSummary").innerHTML =
     "<b>" + (label[d.status] || d.status) + "</b> &mdash; " +
-    d.done + " done, " + d.failed + " failed of " + d.total_rows + " total";
+    d.done + " done, " + d.failed + " failed" + awaiting + " of " + d.total_rows + " total";
 }
 
 function eetRenderInvoices(invoices) {
   const list = document.getElementById("eetInvoiceList");
   list.innerHTML = "";
   (invoices || []).forEach(inv => {
-    const statusColor = { pending:"#888", generating:"#f59e0b",
+    const statusColor = { pending:"#888", generating:"#f59e0b", awaiting_signature:"#f59e0b",
       done:"#22c55e", failed:"#ef4444" };
     const color = statusColor[inv.status] || "#888";
+    const statusText = inv.id === _eetSignCurrent ? "signing..."
+      : inv.status === "awaiting_signature" ? "to sign" : inv.status;
     const typeTag = inv.booking_type
       ? `<span style="font-size:10px;background:${inv.booking_type==='rental'?'#7c3aed':'#0284c7'};
              color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle;">
@@ -2819,7 +2838,7 @@ function eetRenderInvoices(invoices) {
        </div>
        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
          <span style="font-size:11px;color:${color};font-weight:600;text-transform:uppercase;">
-           ${inv.status}
+           ${statusText}
          </span>
          ${dlBtn}
        </div>`;
@@ -2829,6 +2848,141 @@ function eetRenderInvoices(invoices) {
 
 function authHeaders() {
   return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+
+// ── EEE-Taxi: browser-side USB signing via the local helper ──────────────────
+// The server (Vercel) only generates unsigned PDFs. This queue fetches each one,
+// has PalliaSignHelper.exe on this PC sign it with the USB token, and uploads
+// the signed PDF back. One invoice at a time — the token handles one op at once.
+
+let _eetPin = "";
+let _eetSigning = false;        // queue currently running
+let _eetSignHalted = false;     // stopped on wrong PIN / missing token / helper down
+let _eetSignCurrent = null;     // invoice id being signed right now
+let _eetSignAttempted = new Set();
+let _eetLastInvoices = [];
+
+function eetResetSignState() {
+  _eetPin = ""; _eetSigning = false; _eetSignHalted = false; _eetSignCurrent = null;
+  _eetSignAttempted = new Set(); _eetLastInvoices = [];
+  eetSetSignNote("");
+}
+
+function eetSetSignNote(html, kind) {
+  const el = document.getElementById("eetSignNote");
+  if (!el) return;
+  if (!html) { el.style.display = "none"; el.innerHTML = ""; return; }
+  el.style.display = "";
+  el.style.color = kind === "err" ? "#b91c1c" : kind === "ok" ? "#15803d" : "var(--text)";
+  el.innerHTML = html;
+}
+
+async function eetCheckHelper() {
+  try {
+    const r = await fetch(`${SIGN_HELPER_URL}/health`, { signal: AbortSignal.timeout(2500) });
+    if (!r.ok) throw new Error("not ok");
+    const h = await r.json().catch(() => ({}));
+    if (!h.supports_sig_box) {
+      alert("PalliaSignHelper.exe on this PC is an older version.\n" +
+            "Install the latest PalliaSignHelper.exe, then try again.");
+      return false;
+    }
+    return true;
+  } catch (_) {
+    alert("Signing helper is not running.\n\n" +
+          "Start PalliaSignHelper.exe on this PC (it sits in the system tray), " +
+          "plug in the DSC token, then click Proceed again.");
+    return false;
+  }
+}
+
+function eetFatalSignError(msg) { const e = new Error(msg); e.fatal = true; return e; }
+
+async function eetSignOne(inv) {
+  const base = "/api/eee-taxi/batch/" + _eetBatchId + "/invoice/" + inv.id;
+
+  const pdfRes = await fetch(base + "/unsigned", { headers: authHeaders() });
+  if (pdfRes.status === 401) { logout(); throw eetFatalSignError("Session expired. Log in again."); }
+  if (!pdfRes.ok) throw new Error("Could not fetch the unsigned PDF from the server.");
+  const pdfB64 = _arrayBufferToBase64(await pdfRes.arrayBuffer());
+
+  let signRes;
+  try {
+    signRes = await fetch(`${SIGN_HELPER_URL}/sign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pdf_b64: pdfB64, pin: _eetPin, sig_box: inv.sig_box || null }),
+    });
+  } catch (_) {
+    throw eetFatalSignError("Signing helper stopped responding. Start PalliaSignHelper.exe and click Retry.");
+  }
+  if (signRes.status === 401) throw eetFatalSignError("Incorrect DSC PIN. Correct the PIN above and click Retry.");
+  if (signRes.status === 503) throw eetFatalSignError("USB token not found. Plug in the DSC pendrive and click Retry.");
+  if (!signRes.ok) {
+    const err = await signRes.json().catch(() => ({}));
+    throw new Error(err.detail || "Signing failed.");
+  }
+  const { signed_pdf_b64 } = await signRes.json();
+
+  const bytes = Uint8Array.from(atob(signed_pdf_b64), c => c.charCodeAt(0));
+  const fd = new FormData();
+  fd.append("file", new Blob([bytes], { type: "application/pdf" }), "signed.pdf");
+  const up = await fetch(base + "/signed", { method: "POST", headers: authHeaders(), body: fd });
+  if (!up.ok) {
+    const err = await up.json().catch(() => ({}));
+    throw new Error(err.detail || "Upload of the signed PDF failed.");
+  }
+}
+
+async function eetSignLoop(invoices) {
+  if (_eetSigning || _eetSignHalted || !_eetPin || !_eetBatchId) return;
+  const pending = (invoices || []).filter(i =>
+    i.status === "awaiting_signature" && !_eetSignAttempted.has(i.id));
+  if (!pending.length) return;
+
+  _eetSigning = true;
+  const batchId = _eetBatchId;
+  eetSetSignNote(`<span class="spinner"></span> Signing with the USB token &mdash; keep it connected.`);
+  try {
+    for (const inv of pending) {
+      if (_eetSignHalted || _eetBatchId !== batchId) break;
+      _eetSignCurrent = inv.id;
+      eetRenderInvoices(_eetLastInvoices);
+      try {
+        await eetSignOne(inv);
+        _eetSignAttempted.add(inv.id);
+      } catch (e) {
+        if (e.fatal) {
+          _eetSignHalted = true;
+          eetSetSignNote(
+            `${e.message}<br>
+             <button class="btn secondary sm" style="margin-top:6px;font-size:11px;padding:3px 10px;"
+                     onclick="eetRetrySigning()">Retry signing</button>`, "err");
+          break;
+        }
+        _eetSignAttempted.add(inv.id);
+        const fd = new FormData();
+        fd.append("error", e.message || "Signing failed.");
+        await fetch("/api/eee-taxi/batch/" + batchId + "/invoice/" + inv.id + "/sign-failed",
+                    { method: "POST", headers: authHeaders(), body: fd }).catch(() => {});
+      }
+    }
+  } finally {
+    _eetSigning = false;
+    _eetSignCurrent = null;
+    if (!_eetSignHalted) eetSetSignNote("");
+    if (_eetBatchId === batchId) eetPollBatch();
+  }
+}
+
+function eetRetrySigning() {
+  const pin = document.getElementById("eetPin").value;
+  if (pin) _eetPin = pin;
+  if (!_eetPin) { alert("Enter the DSC PIN first."); return; }
+  _eetSignHalted = false;
+  eetSetSignNote(`<span class="spinner"></span> Retrying...`);
+  if (!_eetPollTimer) _eetPollTimer = setInterval(eetPollBatch, 2000);
+  eetPollBatch();
 }
 
 // Downloads go through fetch so the login token is sent; a plain link can't carry it.

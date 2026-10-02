@@ -112,6 +112,40 @@ expected at this stage.
 
 ---
 
+## USB DSC signing (EEE-Taxi) — how it works on Vercel
+
+The web app runs on Vercel, which has no access to a USB token, so signing is
+split between the server and the user's PC:
+
+1. The server generates every invoice PDF unsigned and stores the bytes in the
+   database (`eee_taxi_invoices.pdf_data`) with the signature-box position.
+   In **USB DSC** mode the invoice goes to status `awaiting_signature`.
+2. The browser polls the batch; for each unsigned invoice it downloads the PDF,
+   posts it to **PalliaSignHelper.exe** on `http://127.0.0.1:7777/sign` together
+   with the PIN and the signature box, and uploads the signed PDF back to
+   `POST /api/eee-taxi/batch/{batch}/invoice/{id}/signed`.
+3. The server stores the signed bytes, marks the invoice `done`, and flips the
+   batch to `completed` / `partial` once nothing is left to sign.
+
+The PIN never leaves the browser; the server never sees it. **Dummy (Test)**
+mode still stamps a placeholder on the server and needs no helper.
+
+### Installing the signing helper on a PC
+
+```powershell
+cd signing_helper
+build.bat                       # produces dist\PalliaSignHelper.exe
+copy dist\PalliaSignHelper.exe %LOCALAPPDATA%\PalliaSignHelper\
+%LOCALAPPDATA%\PalliaSignHelper\PalliaSignHelper.exe
+```
+
+The helper sits in the system tray and registers itself to start with Windows.
+It needs the token driver (`C:\Windows\System32\CryptoIDA_pkcs11.dll`) that the
+DSC vendor's software installs. Helper 1.1.0 or newer is required (it accepts
+the `sig_box` field); the web app checks `GET /health` for `supports_sig_box`.
+
+---
+
 ## Next step: fill in the real TMS selectors
 
 Once the local pipeline is verified end-to-end, we'll record the real

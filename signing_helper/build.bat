@@ -25,6 +25,9 @@ pyinstaller ^
   --hidden-import asn1crypto ^
   --collect-all pyhanko ^
   --collect-all pystray ^
+  --collect-all uvicorn ^
+  --hidden-import anyio._backends._asyncio ^
+  --hidden-import loguru ^
   main.py
 
 if exist dist\PalliaSignHelper.exe (
