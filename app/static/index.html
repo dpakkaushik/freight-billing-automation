@@ -287,7 +287,7 @@
     .btn.xs { padding: 3px 8px; font-size: 12px; }
 
     /* ── Inputs ── */
-    input[type="text"], input[type="date"], input[type="number"], input[type="email"], input[type="password"], textarea, select {
+    input[type="text"], input[type="search"], input[type="date"], input[type="number"], input[type="email"], input[type="password"], textarea, select {
       background: var(--panel);
       border: 1px solid var(--input-border);
       border-radius: var(--radius-sm);
@@ -459,6 +459,24 @@
     /* ── Page header ── */
     .page-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
     .page-hd h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+    .sec-hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+
+    /* ── In-page section switch (Masters page) ── */
+    .seg { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 18px; background: var(--panel-3); border: 1px solid var(--border); border-radius: var(--radius); }
+    .seg-btn { border: 0; background: transparent; padding: 7px 16px; font: inherit; font-size: 13.5px; font-weight: 500; color: var(--muted); border-radius: var(--radius-sm); cursor: pointer; transition: color .12s, background .12s; }
+    .seg-btn:hover { color: var(--text); }
+    .seg-btn.active { background: var(--panel); color: var(--text); box-shadow: var(--shadow-md); }
+    .seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    /* ── Cost centre master ── */
+    .cc-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .cc-tools input[type="search"] { max-width: 280px; }
+    .cc-tools .btn { margin-left: auto; }
+    #ccTable input[data-k="vehicle_no"] { font-family: var(--font-mono); font-size: 13px; text-transform: uppercase; }
+    .cc-import { font-size: 13px; line-height: 1.6; border-left: 3px solid var(--accent); }
+    .cc-import ul { margin: 6px 0 0 18px; }
+    .cc-import li { margin-bottom: 4px; }
+    .cc-import .mono { font-family: var(--font-mono); font-size: 12px; }
 
     /* ── Dashboard welcome strip ── */
     .welcome-strip {
@@ -970,13 +988,22 @@
       </div>
     </div>
 
-    <!-- ───── EEE-TAXI: RATE CARD TAB ───── -->
+    <!-- ───── EEE-TAXI: MASTERS TAB (rate card + cost centres) ───── -->
     <div class="tab-pane" id="pane-eee-rates">
       <div class="page-hd">
         <div>
-          <h1>EEE-Taxi — Rate Card</h1>
-          <div class="meta" id="rcMeta">Loading…</div>
+          <h1>EEE-Taxi — Masters</h1>
+          <div class="meta">Rates and Tally details used for every invoice. Changes need the masters edit password.</div>
         </div>
+      </div>
+      <div class="seg" role="tablist" aria-label="Masters">
+        <button class="seg-btn active" role="tab" aria-selected="true" data-mst="rates" onclick="mstShow('rates')">Rate card</button>
+        <button class="seg-btn" role="tab" aria-selected="false" data-mst="cc" onclick="mstShow('cc')">Cost centres</button>
+      </div>
+
+      <section id="mstRates">
+      <div class="sec-hd">
+        <div class="meta" id="rcMeta">Loading…</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <span id="rcLockedActions" class="hidden">
             <button class="btn sm" onclick="rcStartEdit()">&#128274; Edit rates</button>
@@ -1050,6 +1077,42 @@
         <button class="btn ghost sm rc-edit-only" style="margin-top:12px;" onclick="rcAddZone()">+ Add zone</button>
       </div>
       <datalist id="rcAreaList"></datalist>
+      </section>
+
+      <section id="mstCc" class="hidden">
+        <div class="sec-hd">
+          <div class="meta" id="ccMeta">Loading…</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span id="ccLockedActions" class="hidden">
+              <button class="btn sm" onclick="ccStartEdit()">&#128274; Edit cost centres</button>
+            </span>
+            <span id="ccEditActions" class="hidden" style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn secondary sm" onclick="$('#ccFile').click()">Import Tally Excel</button>
+              <button class="btn secondary sm" onclick="ccCancelEdit()">Cancel</button>
+              <button class="btn sm" onclick="ccReview()">Review &amp; save</button>
+            </span>
+          </div>
+        </div>
+        <div id="ccEditBanner" class="extraction-note ok hidden">Editing unlocked. Nothing is saved until you review and confirm your changes.</div>
+        <div id="ccMsg" class="hidden" style="margin-bottom:16px;"></div>
+        <div id="ccImportNote" class="card cc-import hidden"></div>
+
+        <div class="card">
+          <div class="card-title">Car → Tally cost centre</div>
+          <p class="meta" style="margin:-8px 0 14px;">In Tally, every invoice line is tagged with the car that earned it. The name must match Tally exactly, so import the list from Tally instead of typing it: <b>Gateway of Tally → Chart of Accounts → Cost Centres → Alt+E → Excel</b>.</p>
+          <div class="cc-tools">
+            <input type="search" id="ccSearch" placeholder="Search car or name…" oninput="ccFilter()" aria-label="Search cost centres">
+            <span class="meta" id="ccCount"></span>
+            <button class="btn ghost sm cc-edit-only" onclick="ccAddRow()">+ Add car</button>
+          </div>
+          <table class="data-table" id="ccTable">
+            <thead><tr><th style="width:210px;">Car number</th><th>Cost centre name in Tally</th><th style="width:60px;"></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="ccEmpty" class="placeholder hidden">No cost centres yet. Click <b>Edit cost centres</b>, then <b>Import Tally Excel</b>.</div>
+        </div>
+        <input type="file" id="ccFile" accept=".xlsx" class="hidden" onchange="ccImport(this)">
+      </section>
     </div>
 
     <!-- ───── API DASHBOARD TAB ───── -->
@@ -1445,7 +1508,7 @@ function buildSidebar() {
   const eeeSubs = [
     { id: "eee-billing",    label: "Billing",    icon: _ico('<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>') },
     { id: "eee-operations", label: "Operations", icon: _ico('<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>') },
-    { id: "eee-rates",      label: "Rate Card",  icon: _ico('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>') },
+    { id: "eee-rates",      label: "Masters",    icon: _ico('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>') },
   ];
   eeeSubs.forEach(sub => {
     const subBtn = document.createElement("button");
@@ -1466,7 +1529,7 @@ function buildSidebar() {
 const EEE_SUB_DEFS = [
   { id: "eee-billing",    label: "EEE-Taxi — Billing" },
   { id: "eee-operations", label: "EEE-Taxi — Operations" },
-  { id: "eee-rates",      label: "EEE-Taxi — Rate Card" },
+  { id: "eee-rates",      label: "EEE-Taxi — Masters" },
 ];
 
 function switchTab(tabId) {
@@ -1495,7 +1558,7 @@ function switchTab(tabId) {
   if (tabId === "dashboard") refreshDashboard();
   if (tabId === "api-dashboard") initApiDashboard();
   if (tabId === "admin") refreshUsers();
-  if (tabId === "eee-rates") rcLoad();
+  if (tabId === "eee-rates") { rcLoad(); ccLoad(); }
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -3062,7 +3125,18 @@ function eetDownloadRental() { if (_eetBatchId) downloadWithAuth("/api/eee-taxi/
 })();
 
 // ── EEE-Taxi rate card ────────────────────────────────────────────
-let _rc = { saved: null, defaults: null, hasPassword: false, password: null, editing: false };
+let _rc = { saved: null, defaults: null, password: null, editing: false };
+let _mstHasPassword = false;   // one edit password guards every section of the Masters page
+
+function mstShow(which) {
+  $$("#pane-eee-rates .seg-btn").forEach(b => {
+    const on = b.dataset.mst === which;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+  $("#mstRates").classList.toggle("hidden", which !== "rates");
+  $("#mstCc").classList.toggle("hidden", which !== "cc");
+}
 
 const RC_LABELS = {
   small_fare: "Package A fare", small_hours: "Package A hours", small_kms: "Package A kms",
@@ -3087,7 +3161,9 @@ function rcShowMsg(text, ok) {
 function rcHideMsg() { $("#rcMsg").className = "hidden"; }
 
 function rcMetaText(data) {
-  return data.updated_at
+  // Setting the edit password creates the row before any rate is saved, so
+  // only a row with an editor counts as changed.
+  return data.updated_at && data.updated_by
     ? `Last changed by ${data.updated_by} on ${new Date(data.updated_at).toLocaleString("en-IN")}`
     : "Using built-in defaults — not changed yet.";
 }
@@ -3125,8 +3201,8 @@ function rcApplyMode() {
   $("#rcLockedActions").classList.toggle("hidden", editing);
   $("#rcEditActions").classList.toggle("hidden", !editing);
   $("#rcEditBanner").classList.toggle("hidden", !editing);
-  $$("#pane-eee-rates input").forEach(inp => { inp.disabled = !editing; });
-  $$("#pane-eee-rates .rc-edit-only").forEach(el => el.classList.toggle("hidden", !editing));
+  $$("#mstRates input").forEach(inp => { inp.disabled = !editing; });
+  $$("#mstRates .rc-edit-only").forEach(el => el.classList.toggle("hidden", !editing));
 }
 
 function rcUpdateHint() {
@@ -3143,7 +3219,7 @@ async function rcLoad() {
     const data = await api("/api/eee-taxi/rates");
     _rc.saved = data.rates;
     _rc.defaults = data.defaults;
-    _rc.hasPassword = data.has_edit_password;
+    _mstHasPassword = data.has_edit_password;
     rcFill(data.rates);
     $("#rcMeta").textContent = rcMetaText(data);
   } catch (e) {
@@ -3253,12 +3329,12 @@ function rcEnterEditMode(password) {
   rcApplyMode();
 }
 
-function rcStartEdit() {
-  rcHideMsg();
-  if (!_rc.hasPassword) {
+// Ask for the masters edit password (or set it the first time); calls onUnlocked(password).
+function mstUnlock(onUnlocked) {
+  if (!_mstHasPassword) {
     rcModal({
-      title: "Set a rate card edit password",
-      sub: "No edit password exists yet. Choose one; it will be asked every time someone edits the rate card. Minimum 6 characters.",
+      title: "Set a masters edit password",
+      sub: "No edit password exists yet. Choose one; it will be asked every time someone edits the masters (rate card and cost centres). Minimum 6 characters.",
       fields: [{ id: "p1", label: "New edit password" }, { id: "p2", label: "Repeat password" }],
       okText: "Set password & edit",
       onOk: async v => {
@@ -3268,15 +3344,15 @@ function rcStartEdit() {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ new_password: v.p1 }),
         });
-        _rc.hasPassword = true;
-        rcEnterEditMode(v.p1);
+        _mstHasPassword = true;
+        onUnlocked(v.p1);
       },
     });
     return;
   }
   rcModal({
     title: "Enter edit password",
-    sub: "The rate card is locked to prevent accidental changes.",
+    sub: "The masters are locked to prevent accidental changes.",
     fields: [{ id: "pw", label: "Edit password" }],
     okText: "Unlock",
     onOk: async v => {
@@ -3284,9 +3360,14 @@ function rcStartEdit() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: v.pw }),
       });
-      rcEnterEditMode(v.pw);
+      onUnlocked(v.pw);
     },
   });
+}
+
+function rcStartEdit() {
+  rcHideMsg();
+  mstUnlock(rcEnterEditMode);
 }
 
 function rcChangePassword() {
@@ -3349,6 +3430,224 @@ function rcReview() {
       rcShowMsg(`Saved ${changes.length} change${changes.length > 1 ? "s" : ""}. The rate card is locked again.`, true);
     },
   });
+}
+
+// ── EEE-Taxi cost centres (Masters page) ──────────────────────────
+let _cc = { saved: [], password: null, editing: false };
+
+function ccShowMsg(text, ok) {
+  const el = $("#ccMsg");
+  el.className = "extraction-note " + (ok ? "ok" : "err");
+  el.textContent = text;
+}
+function ccHideMsg() { $("#ccMsg").className = "hidden"; }
+function ccHideImportNote() { $("#ccImportNote").classList.add("hidden"); }
+function ccNorm(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+
+function ccRow(r = { vehicle_no: "", cost_centre: "" }) {
+  return `<tr>
+    <td><input type="text" maxlength="20" data-k="vehicle_no" value="${rcEsc(r.vehicle_no)}" aria-label="Car number"></td>
+    <td><input type="text" maxlength="100" data-k="cost_centre" value="${rcEsc(r.cost_centre)}" aria-label="Cost centre name in Tally"></td>
+    <td><button class="btn danger xs cc-edit-only" title="Remove" onclick="this.closest('tr').remove();ccFilter()">✕</button></td>
+  </tr>`;
+}
+
+function ccFill(rows) {
+  $("#ccTable tbody").innerHTML = rows.map(ccRow).join("");
+  ccFilter();
+  ccApplyMode();
+}
+
+function ccApplyMode() {
+  const editing = _cc.editing;
+  $("#ccLockedActions").classList.toggle("hidden", editing);
+  $("#ccEditActions").classList.toggle("hidden", !editing);
+  $("#ccEditBanner").classList.toggle("hidden", !editing);
+  $$("#ccTable tbody input").forEach(inp => { inp.disabled = !editing; });
+  $$("#mstCc .cc-edit-only").forEach(el => el.classList.toggle("hidden", !editing));
+}
+
+function ccFilter() {
+  const q = ccNorm($("#ccSearch").value) || ($("#ccSearch").value || "").trim().toLowerCase();
+  let shown = 0, total = 0;
+  $$("#ccTable tbody tr").forEach(tr => {
+    total++;
+    const text = [...tr.querySelectorAll("input")].map(i => i.value).join(" ");
+    const hit = !q || ccNorm(text).includes(q) || text.toLowerCase().includes(q);
+    tr.classList.toggle("hidden", !hit);
+    if (hit) shown++;
+  });
+  $("#ccCount").textContent = q ? `${shown} of ${total} shown` : `${total} car${total === 1 ? "" : "s"}`;
+  $("#ccEmpty").classList.toggle("hidden", total > 0);
+  $("#ccTable").classList.toggle("hidden", total === 0);
+}
+
+function ccMetaText(data) {
+  const n = data.rows.length;
+  if (!n) return "No cost centres saved yet.";
+  const cars = `${n} car${n === 1 ? "" : "s"}`;
+  return data.updated_at
+    ? `${cars} · last changed by ${data.updated_by} on ${new Date(data.updated_at).toLocaleString("en-IN")}`
+    : cars;
+}
+
+async function ccLoad() {
+  _cc.editing = false;
+  _cc.password = null;
+  ccHideMsg();
+  ccHideImportNote();
+  try {
+    const data = await api("/api/eee-taxi/cost-centres");
+    _cc.saved = data.rows;
+    _mstHasPassword = data.has_edit_password;
+    ccFill(data.rows);
+    $("#ccMeta").textContent = ccMetaText(data);
+  } catch (e) {
+    $("#ccMeta").textContent = "";
+    ccShowMsg("Could not load cost centres: " + e.message, false);
+  }
+}
+
+function ccStartEdit() {
+  ccHideMsg();
+  mstUnlock(pw => { _cc.password = pw; _cc.editing = true; ccApplyMode(); });
+}
+
+function ccCancelEdit() {
+  _cc.editing = false;
+  _cc.password = null;
+  ccFill(_cc.saved);
+  ccHideImportNote();
+  ccShowMsg("Edits discarded. The cost centres are locked again.", true);
+}
+
+function ccAddRow() {
+  $("#ccSearch").value = "";
+  $("#ccTable tbody").insertAdjacentHTML("afterbegin", ccRow());
+  ccFilter();
+  ccApplyMode();
+  $("#ccTable tbody tr:first-child input").focus();
+}
+
+// Rows from the table, normalised and sorted; null (with the bad field marked) when invalid.
+function ccCollect() {
+  const rows = [];
+  const seen = new Set();
+  const bad = (inp, msg) => {
+    $("#ccSearch").value = "";
+    ccFilter();
+    inp.classList.add("invalid");
+    inp.focus();
+    ccShowMsg(msg, false);
+    return null;
+  };
+  for (const tr of $$("#ccTable tbody tr")) {
+    const vIn = tr.querySelector('[data-k="vehicle_no"]');
+    const nIn = tr.querySelector('[data-k="cost_centre"]');
+    vIn.classList.remove("invalid");
+    nIn.classList.remove("invalid");
+    const vehicle_no = ccNorm(vIn.value);
+    const cost_centre = nIn.value.trim();
+    if (!vehicle_no && !cost_centre) continue;   // an untouched new row
+    if (!vehicle_no) return bad(vIn, "Enter the car number.");
+    if (!cost_centre) return bad(nIn, `Enter the Tally cost centre name for ${vehicle_no}.`);
+    if (seen.has(vehicle_no)) return bad(vIn, `${vehicle_no} is listed twice.`);
+    seen.add(vehicle_no);
+    rows.push({ vehicle_no, cost_centre });
+  }
+  return rows.sort((a, b) => a.vehicle_no.localeCompare(b.vehicle_no));
+}
+
+function ccDiff(before, after) {
+  const b = new Map(before.map(r => [r.vehicle_no, r.cost_centre]));
+  const a = new Map(after.map(r => [r.vehicle_no, r.cost_centre]));
+  const lines = [];
+  for (const [car, name] of a) {
+    if (!b.has(car)) lines.push({ kind: "added", text: `Added: ${car} → ${name}` });
+    else if (b.get(car) !== name) lines.push({ kind: "changed", text: `${car}: ${b.get(car)} → ${name}` });
+  }
+  for (const [car, name] of b) if (!a.has(car)) lines.push({ kind: "removed", text: `Removed: ${car} (was ${name})` });
+  return lines;
+}
+
+function ccReview() {
+  ccHideMsg();
+  const after = ccCollect();
+  if (!after) return;
+  const changes = ccDiff(_cc.saved, after);
+  if (!changes.length) { ccShowMsg("No changes to save.", true); return; }
+  const colour = { added: "var(--ok)", removed: "var(--err)", changed: "var(--text)" };
+  const list = `<ul style="margin:6px 0 0 18px;max-height:300px;overflow:auto;font-size:13.5px;line-height:1.8;">
+      ${changes.map(c => `<li style="color:${colour[c.kind]}">${rcEsc(c.text)}</li>`).join("")}
+    </ul>`;
+  rcModal({
+    title: `Confirm ${changes.length} change${changes.length > 1 ? "s" : ""}`,
+    sub: "These names will be used to tag invoice lines in the Tally export.",
+    bodyHtml: list,
+    okText: "Confirm & save",
+    onOk: async () => {
+      const data = await api("/api/eee-taxi/cost-centres", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ edit_password: _cc.password, rows: after }),
+      });
+      _cc.saved = data.rows;
+      _cc.editing = false;
+      _cc.password = null;
+      ccFill(data.rows);
+      ccHideImportNote();
+      $("#ccMeta").textContent = ccMetaText(data);
+      ccShowMsg(`Saved ${changes.length} change${changes.length > 1 ? "s" : ""}. The cost centres are locked again.`, true);
+    },
+  });
+}
+
+// Read the Tally Excel, merge it into the table (file wins) and explain what happened.
+async function ccImport(input) {
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  ccHideMsg();
+  ccHideImportNote();
+  const fd = new FormData();
+  fd.append("file", file);
+  let data;
+  try {
+    data = await api("/api/eee-taxi/cost-centres/import-tally", { method: "POST", body: fd });
+  } catch (e) {
+    ccShowMsg("Could not read the file: " + e.message, false);
+    return;
+  }
+  const current = new Map();
+  $$("#ccTable tbody tr").forEach(tr => {
+    const car = ccNorm(tr.querySelector('[data-k="vehicle_no"]').value);
+    const name = tr.querySelector('[data-k="cost_centre"]').value.trim();
+    if (car) current.set(car, name);
+  });
+  const fromFile = new Set(data.rows.map(r => r.vehicle_no));
+  const keptOnly = [...current.keys()].filter(car => !fromFile.has(car)).sort();
+  const merged = new Map(current);
+  data.rows.forEach(r => merged.set(r.vehicle_no, r.cost_centre));
+  $("#ccSearch").value = "";
+  ccFill([...merged].map(([vehicle_no, cost_centre]) => ({ vehicle_no, cost_centre }))
+    .sort((a, b) => a.vehicle_no.localeCompare(b.vehicle_no)));
+
+  const mono = s => `<span class="mono">${rcEsc(s)}</span>`;
+  const items = [];
+  if (data.picked.length) {
+    items.push(`${data.picked.length} car${data.picked.length > 1 ? "s are" : " is"} in Tally twice; the name with the model was used: ` +
+      data.picked.map(p => `${mono(p.chosen)} (not ${p.others.map(mono).join(", ")})`).join("; ") + ".");
+  }
+  const skipped = [...data.not_cars, ...data.multi_car];
+  if (skipped.length) {
+    items.push(`Skipped because they are not a single car: ${skipped.map(mono).join(", ")}.`);
+  }
+  if (keptOnly.length) {
+    items.push(`Kept from before but not in this file: ${keptOnly.map(mono).join(", ")}. Remove them if they no longer exist in Tally.`);
+  }
+  const note = $("#ccImportNote");
+  note.innerHTML = `<b>Read ${data.rows.length} cars from ${rcEsc(file.name)}.</b> Nothing is saved until you click Review &amp; save.` +
+    (items.length ? `<ul>${items.map(i => `<li>${i}</li>`).join("")}</ul>` : "");
+  note.classList.remove("hidden");
 }
 
 function rcAddRoute() { $("#rcRoutes tbody").insertAdjacentHTML("beforeend", rcRouteRow()); rcApplyMode(); $("#rcRoutes tbody tr:last-child input").focus(); }

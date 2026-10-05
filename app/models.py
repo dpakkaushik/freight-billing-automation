@@ -299,7 +299,8 @@ class EeeTaxiRateCard(Base):
     """Single-row table holding the editable EEE-Taxi rate card.
 
     ``rates`` is the JSON form of ``app.services.eee_taxi_rates.RateCard``;
-    ``edit_password_hash`` protects edits on the Rate Card page.
+    ``edit_password_hash`` protects edits on the Masters page (rate card and
+    cost centres share it).
     """
     __tablename__ = "eee_taxi_rate_card"
 
@@ -308,3 +309,18 @@ class EeeTaxiRateCard(Base):
     updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     edit_password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class EeeTaxiCostCentre(Base):
+    """Car number -> exact Tally cost-centre name (EEE-Taxi -> Masters page).
+
+    Tags each income line of an invoice exported to Tally with the car that
+    earned it. See ``app.services.eee_taxi_cost_centres``.
+    """
+    __tablename__ = "eee_taxi_cost_centres"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    vehicle_no: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    cost_centre: Mapped[str] = mapped_column(String(100))
+    updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

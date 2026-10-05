@@ -1,8 +1,9 @@
 """EEE-Taxi rate card API.
 
 Any user with the eee_taxi permission (or an admin) can read the rate card.
-Changing it needs the separate rate-card edit password, which is checked on
+Changing it needs the separate masters edit password, which is checked on
 every save (the "unlock" call only lets the page know the password is right).
+The same password guards the cost centre master (``eee_taxi_cost_centres``).
 """
 from __future__ import annotations
 
@@ -62,13 +63,14 @@ def _response(db: Session) -> dict:
     }
 
 
-def _check_edit_password(db: Session, password: str, user: User) -> None:
+def check_edit_password(db: Session, password: str, user: User) -> None:
+    """Raise unless ``password`` is the masters edit password."""
     stored = get_edit_password_hash(db)
     if not stored:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Set a rate card edit password first.")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Set a masters edit password first.")
     if not verify_password(password, stored):
-        logger.warning("Wrong rate card edit password entered by {}", user.email)
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Wrong rate card edit password.")
+        logger.warning("Wrong masters edit password entered by {}", user.email)
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Wrong masters edit password.")
 
 
 @router.get("")
@@ -81,7 +83,7 @@ def read_rates(
 
 @router.post("/unlock")
 def unlock(body: UnlockIn, user: User = Depends(_eee_user), db: Session = Depends(get_db)) -> dict:
-    _check_edit_password(db, body.password, user)
+    check_edit_password(db, body.password, user)
     return {"ok": True}
 
 
@@ -89,9 +91,9 @@ def unlock(body: UnlockIn, user: User = Depends(_eee_user), db: Session = Depend
 def set_password(body: PasswordIn, user: User = Depends(_eee_user), db: Session = Depends(get_db)) -> dict:
     """Set the edit password the first time, or change it (needs the current one)."""
     if get_edit_password_hash(db):
-        _check_edit_password(db, body.current_password, user)
+        check_edit_password(db, body.current_password, user)
     set_edit_password_hash(db, get_password_hash(body.new_password))
-    logger.info("Rate card edit password set by {}", user.email)
+    logger.info("Masters edit password set by {}", user.email)
     return {"ok": True}
 
 
@@ -101,7 +103,7 @@ def update_rates(
     user: User = Depends(_eee_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    _check_edit_password(db, body.edit_password, user)
+    check_edit_password(db, body.edit_password, user)
     before = rate_card_to_dict(get_rate_card_state(db).card)
     card = body.rates.to_rate_card()
     save_rate_card(db, card, updated_by=user.email)
