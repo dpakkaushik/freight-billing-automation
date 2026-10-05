@@ -286,6 +286,9 @@ class EeeTaxiInvoice(Base):
     # Signature box (x1, y1, x2, y2) in PDF points, captured at generation time
     # and handed to the local signing helper so the stamp lands in the footer.
     sig_box: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # When this invoice was last included in a Tally XML download (not proof
+    # that it was imported; that happens in Tally).
+    tally_exported_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 

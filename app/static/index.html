@@ -478,6 +478,17 @@
     .cc-import li { margin-bottom: 4px; }
     .cc-import .mono { font-family: var(--font-mono); font-size: 12px; }
 
+    /* ── Tally export ── */
+    .tx-filters { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+    .tx-filters input[type="date"] { width: 170px; }
+    .tx-check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; padding-bottom: 8px; cursor: pointer; }
+    #txTable td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    #txTable td.inv { font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
+    #txTable tr.blocked td { color: var(--muted); }
+    .tx-problem { color: var(--err); font-size: 12.5px; }
+    .tx-done { color: var(--ok); font-size: 12.5px; }
+    @media (max-width: 760px) { #txTable { display: block; overflow-x: auto; } }
+
     /* ── Dashboard welcome strip ── */
     .welcome-strip {
       background: var(--panel);
@@ -985,6 +996,40 @@
         <div style="font-size:32px;margin-bottom:12px;">🚖</div>
         <h2 style="color:var(--text);margin-bottom:8px;">EEE-Taxi Operations</h2>
         Operations module for EEE-Taxi. Coming soon.
+      </div>
+    </div>
+
+    <!-- ───── EEE-TAXI: TALLY EXPORT TAB ───── -->
+    <div class="tab-pane" id="pane-eee-tally">
+      <div class="page-hd">
+        <div>
+          <h1>EEE-Taxi — Tally Export</h1>
+          <div class="meta">Download signed invoices as an XML file for Tally: Gateway of Tally → Import → Transactions.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="tx-filters">
+          <div><label class="field" for="txFrom">Invoice date from</label><input type="date" id="txFrom"></div>
+          <div><label class="field" for="txTo">to</label><input type="date" id="txTo"></div>
+          <label class="tx-check"><input type="checkbox" id="txIncludeExported"> Include invoices already exported</label>
+          <button class="btn secondary sm" onclick="txLoad()">Show invoices</button>
+        </div>
+      </div>
+      <div id="txMsg" class="hidden" style="margin-bottom:16px;"></div>
+      <div class="card">
+        <div class="sec-hd" style="margin-bottom:12px;">
+          <div class="meta" id="txSummary">Loading…</div>
+          <button class="btn sm" id="txDownload" onclick="txExport()" disabled>Download Tally XML</button>
+        </div>
+        <table class="data-table" id="txTable">
+          <thead><tr>
+            <th style="width:36px;"><input type="checkbox" id="txAll" aria-label="Select all" onchange="txToggleAll(this.checked)"></th>
+            <th>Invoice no.</th><th>Date</th><th>Client</th><th>Car</th><th>Booking</th>
+            <th style="text-align:right;">Amount (₹)</th><th>Status</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="txEmpty" class="placeholder hidden">No signed invoices match these filters.</div>
       </div>
     </div>
 
@@ -1508,6 +1553,7 @@ function buildSidebar() {
   const eeeSubs = [
     { id: "eee-billing",    label: "Billing",    icon: _ico('<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>') },
     { id: "eee-operations", label: "Operations", icon: _ico('<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>') },
+    { id: "eee-tally",      label: "Tally Export", icon: _ico('<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>') },
     { id: "eee-rates",      label: "Masters",    icon: _ico('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>') },
   ];
   eeeSubs.forEach(sub => {
@@ -1529,6 +1575,7 @@ function buildSidebar() {
 const EEE_SUB_DEFS = [
   { id: "eee-billing",    label: "EEE-Taxi — Billing" },
   { id: "eee-operations", label: "EEE-Taxi — Operations" },
+  { id: "eee-tally",      label: "EEE-Taxi — Tally Export" },
   { id: "eee-rates",      label: "EEE-Taxi — Masters" },
 ];
 
@@ -1559,6 +1606,7 @@ function switchTab(tabId) {
   if (tabId === "api-dashboard") initApiDashboard();
   if (tabId === "admin") refreshUsers();
   if (tabId === "eee-rates") { rcLoad(); ccLoad(); }
+  if (tabId === "eee-tally") txLoad();
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -3430,6 +3478,117 @@ function rcReview() {
       rcShowMsg(`Saved ${changes.length} change${changes.length > 1 ? "s" : ""}. The rate card is locked again.`, true);
     },
   });
+}
+
+// ── EEE-Taxi Tally export ─────────────────────────────────────────
+let _tx = { items: [] };
+
+function txShowMsg(text, ok) {
+  const el = $("#txMsg");
+  el.className = "extraction-note " + (ok ? "ok" : "err");
+  el.textContent = text;
+}
+function txMoney(v) { return Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function txStatus(i) {
+  if (i.problem) return `<span class="tx-problem">${rcEsc(i.problem)}</span>`;
+  if (i.exported_at) return `<span class="tx-done">Exported ${rcEsc(new Date(i.exported_at).toLocaleString("en-IN"))}</span>`;
+  return `<span class="meta">Ready</span>`;
+}
+
+function txRender() {
+  const rows = _tx.items.map(i => `<tr class="${i.problem ? "blocked" : ""}">
+      <td><input type="checkbox" data-id="${rcEsc(i.id)}" ${i.problem ? "disabled" : "checked"} onchange="txUpdate()"
+           aria-label="Select ${rcEsc(i.invoice_no)}"></td>
+      <td class="inv">${rcEsc(i.invoice_no)}</td>
+      <td>${rcEsc(new Date(i.invoice_date).toLocaleDateString("en-IN"))}</td>
+      <td>${rcEsc(i.entity_name)}</td>
+      <td class="inv">${rcEsc(i.car_no)}</td>
+      <td>${i.booking_type === "rental" ? "Rental" : "Point to point"}</td>
+      <td class="num">${i.total ? txMoney(i.total) : "—"}</td>
+      <td>${txStatus(i)}</td>
+    </tr>`).join("");
+  $("#txTable tbody").innerHTML = rows;
+  $("#txTable").classList.toggle("hidden", !_tx.items.length);
+  $("#txEmpty").classList.toggle("hidden", _tx.items.length > 0);
+  txUpdate();
+}
+
+function txSelected() {
+  const ids = new Set([...$$("#txTable tbody input:checked")].map(c => c.dataset.id));
+  return _tx.items.filter(i => ids.has(i.id));
+}
+
+function txUpdate() {
+  const sel = txSelected();
+  const total = sel.reduce((s, i) => s + Number(i.total), 0);
+  const blocked = _tx.items.filter(i => i.problem).length;
+  const reexport = sel.filter(i => i.exported_at).length;
+  let text = `${sel.length} of ${_tx.items.length} invoice${_tx.items.length === 1 ? "" : "s"} selected · ₹${txMoney(total)}`;
+  if (blocked) text += ` · ${blocked} need fixing first`;
+  if (reexport) text += ` · ${reexport} already exported before`;
+  $("#txSummary").textContent = text;
+  $("#txDownload").disabled = sel.length === 0;
+  const boxes = [...$$("#txTable tbody input:not(:disabled)")];
+  $("#txAll").checked = boxes.length > 0 && boxes.every(b => b.checked);
+}
+
+function txToggleAll(on) {
+  $$("#txTable tbody input:not(:disabled)").forEach(b => { b.checked = on; });
+  txUpdate();
+}
+
+async function txLoad() {
+  $("#txMsg").className = "hidden";
+  const params = new URLSearchParams();
+  if ($("#txFrom").value) params.set("date_from", $("#txFrom").value);
+  if ($("#txTo").value) params.set("date_to", $("#txTo").value);
+  if ($("#txIncludeExported").checked) params.set("include_exported", "true");
+  $("#txSummary").textContent = "Loading…";
+  try {
+    const data = await api(`/api/eee-taxi/tally/preview?${params}`);
+    _tx.items = data.invoices;
+    txRender();
+  } catch (e) {
+    _tx.items = [];
+    txRender();
+    txShowMsg("Could not load invoices: " + e.message, false);
+  }
+}
+
+async function txExport() {
+  const sel = txSelected();
+  if (!sel.length) return;
+  const again = sel.filter(i => i.exported_at);
+  if (again.length && !confirm(`${again.length} of these were exported before. Tally will reject them if they are already in Tally ` +
+      `("Prevent duplicates"). Download anyway?`)) return;
+  const btn = $("#txDownload");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/eee-taxi/tally/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ invoice_ids: sel.map(i => i.id) }),
+    });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || res.statusText);
+    }
+    const name = (res.headers.get("content-disposition") || "").match(/filename="([^"]+)"/);
+    const url = URL.createObjectURL(await res.blob());
+    const a = Object.assign(document.createElement("a"), { href: url, download: name ? name[1] : "tally.xml" });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    await txLoad();
+    txShowMsg(`Downloaded ${sel.length} invoice${sel.length === 1 ? "" : "s"}. In Tally: Gateway of Tally → Import → Transactions → choose this file.`, true);
+  } catch (e) {
+    txShowMsg("Export failed: " + e.message, false);
+  } finally {
+    btn.disabled = txSelected().length === 0;
+  }
 }
 
 // ── EEE-Taxi cost centres (Masters page) ──────────────────────────

@@ -86,7 +86,7 @@ def _widen_varchar_columns(conn, inspector) -> None:
 
 def _migrate_existing_db() -> None:
     """Add columns introduced after initial deploy without dropping existing data."""
-    from sqlalchemy import JSON, LargeBinary, inspect, text
+    from sqlalchemy import JSON, DateTime, LargeBinary, inspect, text
 
     with engine.connect() as conn:
         inspector = inspect(conn)
@@ -126,6 +126,9 @@ def _migrate_existing_db() -> None:
                 conn.execute(text(f"ALTER TABLE eee_taxi_invoices ADD COLUMN signed_pdf_data {binary_type}"))
             if "sig_box" not in existing:
                 conn.execute(text(f"ALTER TABLE eee_taxi_invoices ADD COLUMN sig_box {json_type}"))
+            if "tally_exported_at" not in existing:
+                datetime_type = DateTime().compile(dialect=engine.dialect)
+                conn.execute(text(f"ALTER TABLE eee_taxi_invoices ADD COLUMN tally_exported_at {datetime_type}"))
             conn.commit()
 
         _widen_varchar_columns(conn, inspect(conn))
